@@ -31,9 +31,9 @@ The solution bridges the **gap in culturally relevant mental health support** fo
 
 ## 🧩 Key Components
 
-### 1. **AI-Driven Sinhala Chatbot**
+### 1. **AI-Driven Sinhala Chatbot with fake call ditetction**
 - Real-time conversational agent (text + voice).
-- Emotion detection from chat and call data.
+- Emotion detection and fake call detection from and call data.
 - Empathetic and culturally aligned responses.
 
 ### 2. **Typing Behavior Analysis**
