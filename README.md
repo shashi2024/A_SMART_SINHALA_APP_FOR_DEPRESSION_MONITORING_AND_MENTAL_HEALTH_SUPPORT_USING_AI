@@ -4,9 +4,9 @@
 **Specialization:** Information Technology  
 **Institution:** SLIIT  
 **Developed by:**  
+- IT22025494 - Rathnayaka P.S.N 
 - IT22304810 - Sewwandi M.P.S.S  
-- IT22349156 - Wijesinghe K.A.A.N  
-- IT22025494 - Rathnayaka P.S.N  
+- IT22349156 - Wijesinghe K.A.A.N   
 - IT22169808 - Srimali K.H.J  
 
 ---
@@ -61,6 +61,10 @@ The solution bridges the **gap in culturally relevant mental health support** fo
 - **Chatbot Engine:** Rasa (Custom Sinhala NLP pipeline)  
 - **Database:** Firebase  
 - **Additional Tools:** Visual Studio, Android Studio, Ollama, Google Maps API  
+
+---
+
+<img width="1253" height="663" alt="Untitled (3)" src="https://github.com/user-attachments/assets/af611024-3435-418d-8b55-675fc60cc1ca" />
 
 ---
 
