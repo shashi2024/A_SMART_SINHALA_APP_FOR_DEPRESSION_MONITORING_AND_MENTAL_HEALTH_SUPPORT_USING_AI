@@ -20,36 +20,41 @@ The solution bridges the **gap in culturally relevant mental health support** fo
 
 ---
 
-## 🎯 Objectives
+## 🎯 Key Features
 
-- Detect depression levels through **AI-based Sinhala chatbot conversations and voice calls**.
-- Monitor emotional and behavioral patterns via **typing analysis** and **sensor-based biofeedback**.
-- Provide **personalized mental health support** and connect users to professionals in critical cases.
-- Ensure **privacy, ethical compliance**, and **user confidentiality**.
+### 1. **AI-Driven Sinhala Chatbot**
+- Real-time conversational agent (text + voice)
+- Emotion detection and fake call detection from call data
+- Empathetic and culturally aligned responses
 
----
+### 2. **Voice Analysis**
+- Real-time voice call recording and analysis
+- Emotion detection from audio features
+- Depression score calculation
+- Fake voice detection to prevent synthetic users
 
-## 🧩 Key Components
+### 3. **Typing Behavior Analysis**
+- Tracks Sinhala typing speed, pauses, and errors
+- Detects stress or emotional imbalance using keystroke dynamics
+- Privacy-preserving – does not store typed content
+- Fake typing pattern detection
 
-### 1. **AI-Driven Sinhala Chatbot with fake call ditetction**
-- Real-time conversational agent (text + voice).
-- Emotion detection and fake call detection from and call data.
-- Empathetic and culturally aligned responses.
+### 4. **Sensor-Based Monitoring**
+- Uses **smartphone sensors** (camera, mic, accelerometer, gyroscope)
+- Detects stress or depression levels (mild, moderate, severe)
+- Adaptive UI that adjusts based on detected emotional state
 
-### 2. **Typing Behavior Analysis**
-- Tracks Sinhala typing speed, pauses, and errors.
-- Detects stress or emotional imbalance using keystroke dynamics.
-- Privacy-preserving – does not store typed content.
+### 5. **Digital Twin Framework**
+- Builds a virtual model of user's mental health profile
+- Enables **real-time doctor connection** and **location tracking** during crises
+- Provides **personalized, data-driven insights** for long-term wellness
 
-### 3. **Biofeedback-Based Monitoring**
-- Uses **smartphone sensors** (camera, mic, accelerometer, heart rate) to monitor biofeedback.
-- Detects stress or depression levels (mild, moderate, severe).
-- Adaptive UI that adjusts tone, visuals, and speed based on detected emotional state.
-
-### 4. **Digital Twin Framework**
-- Builds a virtual model of user’s mental health profile.
-- Enables **real-time doctor connection** and **location tracking** during crises.
-- Provides **personalized, data-driven insights** for long-term wellness.
+### 6. **Admin Panel**
+- Hospital/medical professional dashboard
+- User management and monitoring
+- Alert system for high-risk cases
+- Digital twin visualization
+- Real-time analytics
 
 ---
 
@@ -57,24 +62,106 @@ The solution bridges the **gap in culturally relevant mental health support** fo
 
 - **Frontend:** Flutter (cross-platform mobile app)  
 - **Backend:** FastAPI + RESTful APIs  
-- **AI Model Training:** Python, TensorFlow, PyTorch, pyAudioAnalysis  
+- **AI Model Training:** Python, TensorFlow, PyTorch, librosa  
 - **Chatbot Engine:** Rasa (Custom Sinhala NLP pipeline)  
-- **Database:** Firebase  
+- **Database:** SQLite/PostgreSQL  
+- **Admin Panel:** React + Material-UI  
 - **Additional Tools:** Visual Studio, Android Studio, Ollama, Google Maps API  
 
 ---
 
-<img width="1253" height="663" alt="Untitled (3)" src="https://github.com/user-attachments/assets/af611024-3435-418d-8b55-675fc60cc1ca" />
+## 📁 Project Structure
+
+```
+├── backend/              # FastAPI backend server
+├── frontend/             # Flutter mobile application
+├── admin_panel/          # React admin dashboard
+├── ai_models/            # ML model training scripts
+└── models/               # Trained model files
+```
+
+See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for detailed structure.
 
 ---
 
-## 📊 Evaluation Metrics
+## 🚀 Quick Start
 
-- **Usability:** Ease of use and accessibility in Sinhala.
-- **Accuracy:** Correct detection of emotional/depression states.
-- **Cultural Relevance:** Contextual understanding of Sinhala language.
-- **User Adoption:** Engagement levels and retention.
-- **Ethical Compliance:** Data privacy, consent, and SLIIT ethical clearance adherence.
+### Prerequisites
+- Python 3.9+
+- Node.js 18+
+- Flutter SDK 3.0+
+
+### Backend Setup
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env
+# Edit .env with your configuration
+python main.py
+```
+
+### Frontend Setup
+```bash
+cd frontend
+flutter pub get
+flutter run
+```
+
+### Admin Panel Setup
+```bash
+cd admin_panel
+npm install
+npm run dev
+```
+
+For detailed setup instructions, see [SETUP_GUIDE.md](SETUP_GUIDE.md).
+
+---
+
+## 📊 API Endpoints
+
+### Authentication
+- `POST /api/auth/register` - Register new user
+- `POST /api/auth/login` - User login
+- `GET /api/auth/me` - Get current user info
+
+### Chatbot
+- `POST /api/chatbot/chat` - Send chat message
+- `GET /api/chatbot/sessions` - Get chat sessions
+
+### Voice Analysis
+- `POST /api/voice/analyze` - Analyze voice audio
+- `GET /api/voice/history` - Get voice analysis history
+
+### Typing Analysis
+- `POST /api/typing/analyze` - Analyze typing patterns
+- `GET /api/typing/history` - Get typing analysis history
+
+### Admin Panel
+- `GET /api/admin/dashboard` - Get dashboard data
+- `GET /api/admin/alerts` - Get alerts
+- `GET /api/admin/users/{user_id}/profile` - Get user profile
+
+### Digital Twin
+- `GET /api/digital-twin/profile` - Get digital twin profile
+- `POST /api/digital-twin/update` - Update digital twin
+
+---
+
+## 🧪 Technologies Used
+
+| Category | Technologies |
+|-----------|--------------|
+| **Frontend** | Flutter, Dart |
+| **Backend** | FastAPI, Python, SQLAlchemy |
+| **AI/ML** | TensorFlow, PyTorch, librosa, scikit-learn |
+| **Chatbot** | Rasa (custom Sinhala NLP pipeline) |
+| **Admin Panel** | React, Material-UI, Vite |
+| **APIs** | Google Speech-to-Text, Text-to-Speech, Maps API |
+| **Database** | SQLite/PostgreSQL |
+| **Tools** | Visual Studio, Android Studio, Ollama |
 
 ---
 
@@ -84,19 +171,15 @@ The solution bridges the **gap in culturally relevant mental health support** fo
 - No raw audio, video, or typed text is stored — only processed features.
 - Data anonymized and securely stored.
 - Strict compliance with local and international mental health data handling regulations.
+- Fake user detection to prevent system abuse.
 
 ---
 
-## 🧪 Technologies Used
+## 📚 Documentation
 
-| Category | Technologies |
-|-----------|--------------|
-| **Frontend** | Flutter |
-| **Backend** | FastAPI, Firebase |
-| **AI/ML** | TensorFlow, PyTorch, Python, pyAudioAnalysis |
-| **Chatbot** | Rasa (custom Sinhala NLP pipeline) |
-| **APIs** | Google Speech-to-Text, Text-to-Speech, Maps API |
-| **Tools** | Visual Studio, Android Studio, Ollama |
+- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - Detailed project structure
+- [SETUP_GUIDE.md](SETUP_GUIDE.md) - Complete setup instructions
+- API documentation available at `http://localhost:8000/docs` when backend is running
 
 ---
 
@@ -106,13 +189,7 @@ The solution bridges the **gap in culturally relevant mental health support** fo
 - Integrate **wearable device data** for advanced biofeedback.
 - Enable **offline chatbot conversations**.
 - Introduce **AI-generated therapy content** and mindfulness sessions.
-
----
-
-## 📚 References
-
-The system is built upon recent research in AI for mental health, digital twin frameworks, keystroke dynamics, and biofeedback technologies.  
-Key references are available in the presentation and documentation folder.
+- Advanced fake detection using deep learning models.
 
 ---
 
@@ -132,4 +209,4 @@ Unauthorized commercial use or redistribution is prohibited.
 
 ---
 
-> “Empowering Sinhala-speaking communities with AI-driven mental health care — confidential, compassionate, and culturally relevant.”
+> "Empowering Sinhala-speaking communities with AI-driven mental health care — confidential, compassionate, and culturally relevant."
