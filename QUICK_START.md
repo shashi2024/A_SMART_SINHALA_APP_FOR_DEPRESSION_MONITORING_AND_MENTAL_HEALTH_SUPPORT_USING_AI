@@ -8,7 +8,7 @@ Get the project running in 5 minutes!
 - **Java 21** (for Android builds)
 - **Node.js 18+** (for admin panel)
 - **Flutter 3.0+** (for mobile app)
-- **Android phone** with USB debugging enabled
+- **Android phone** with USB debugging enabled / **chrome** / **edge**
 
 ## ⚡ Quick Run (3 Steps)
 
