@@ -3,7 +3,19 @@ import 'package:http/http.dart' as http;
 import 'dart:io';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:8000/api';
+  // API Base URL Configuration
+  // For Android Emulator: Use 'http://10.0.2.2:8000/api' (10.0.2.2 maps to host's localhost)
+  // For Physical Device: Use 'http://YOUR_COMPUTER_IP:8000/api' (e.g., 'http://192.168.1.100:8000/api')
+  // For Web/Windows: Use 'http://localhost:8000/api'
+  // 
+  // To find your computer's IP address:
+  //   Windows: Run 'ipconfig' and look for IPv4 Address
+  //   Linux/Mac: Run 'ifconfig' or 'ip addr show'
+  static const String baseUrl = 'http://192.168.122.173:8000/api';
+  
+  // Uncomment and set your IP address for physical device:
+  // static const String baseUrl = 'http://192.168.1.100:8000/api';
+  
   String? _token;
 
   void setToken(String? token) {
@@ -93,8 +105,9 @@ class ApiService {
 
   Future<Map<String, dynamic>> analyzeVoice(
     String audioPath,
-    Map<String, dynamic>? sensorData,
-  ) async {
+    Map<String, dynamic>? sensorData, {
+    String language = 'sinhala',
+  }) async {
     final request = http.MultipartRequest(
       'POST',
       Uri.parse('$baseUrl/voice/analyze'),
@@ -104,6 +117,9 @@ class ApiService {
     request.files.add(
       await http.MultipartFile.fromPath('audio_file', audioPath),
     );
+    
+    // Add language parameter
+    request.fields['language'] = language;
 
     final response = await request.send();
     final responseBody = await response.stream.bytesToString();
@@ -112,6 +128,20 @@ class ApiService {
       return jsonDecode(responseBody);
     } else {
       throw Exception('Voice analysis failed');
+    }
+  }
+
+  Future<List<dynamic>> getSupportedLanguages() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/voice/languages'),
+      headers: _headers,
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['languages'] as List;
+    } else {
+      throw Exception('Failed to get supported languages');
     }
   }
 
