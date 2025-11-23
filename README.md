@@ -5,6 +5,7 @@ AI-powered mental health support app with Sinhala, Tamil, and English language s
 ## 🎯 Features
 
 - **Voice Call Analysis** - Depression detection from voice with call bot detection
+- **Fake Call Detector** - Detect the fake calles like spam, AI , joke calles
 - **Chat Support** - AI chatbot in Sinhala/Tamil/English
 - **Typing Analysis** - Keystroke pattern analysis
 - **Multi-language** - Sinhala (සිංහල), Tamil (தமிழ்), English
@@ -34,7 +35,7 @@ See **[QUICK_START.md](QUICK_START.md)** for step-by-step setup.
 - Java 21
 - Node.js 18+
 - Flutter 3.0+
-- Android phone with USB debugging
+- Android phone with USB debugging / chrome / edge (refer the guidlines)
 
 ## 📱 Running on Phone
 
@@ -52,7 +53,8 @@ See **[QUICK_START.md](QUICK_START.md)** for step-by-step setup.
 4. **Run:**
    ```bash
    cd frontend
-   flutter run
+   flutter pub get
+   flutter run -d <device ID> 
    ```
 
 ## 🌐 API Endpoints
