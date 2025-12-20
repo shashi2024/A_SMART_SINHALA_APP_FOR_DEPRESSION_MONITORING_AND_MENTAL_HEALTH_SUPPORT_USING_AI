@@ -1,25 +1,26 @@
 """
-Voice analysis routes for call-based interactions with language support
+Voice analysis routes for call-based interactions with language support - Using Firestore
 """
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional
-from sqlalchemy.orm import Session
 from datetime import datetime
 import os
+import json
 
-from app.database import get_db, User, Session as DBSession, VoiceAnalysis
 from app.routes.auth import get_current_user
 from app.services.voice_analysis import VoiceAnalysisService
 from app.services.call_bot_detection import CallBotDetectionService
 from app.services.fake_detection import FakeDetectionService
+from app.services.firestore_service import FirestoreService
 from app.config import settings
 
 router = APIRouter()
+firestore_service = FirestoreService()
 
 class VoiceAnalysisResponse(BaseModel):
-    session_id: int
+    session_id: str  # Changed from int to str for Firestore
     emotion: str
     depression_score: float
     risk_level: str
@@ -36,9 +37,8 @@ class VoiceAnalysisResponse(BaseModel):
 async def analyze_voice(
     audio_file: UploadFile = File(...),
     language: str = Form(default="sinhala"),  # Language selection: sinhala, tamil, english
-    session_id: Optional[int] = Form(default=None),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    session_id: Optional[str] = Form(default=None),  # Changed from int to str
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Analyze voice from audio file with language support and call bot detection
@@ -60,11 +60,13 @@ async def analyze_voice(
     
     language = language.lower()
     
+    user_id = current_user.get('id')
+    
     # Save uploaded file
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     file_path = os.path.join(
         settings.UPLOAD_DIR,
-        f"{current_user.id}_{datetime.now().timestamp()}.wav"
+        f"{user_id}_{datetime.now().timestamp()}.wav"
     )
     
     with open(file_path, "wb") as buffer:
@@ -98,54 +100,48 @@ async def analyze_voice(
     
     # Get or create session
     if session_id:
-        session = db.query(DBSession).filter(DBSession.id == session_id).first()
+        session = firestore_service.get_session_by_id(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
     else:
-        session = DBSession(
-            user_id=current_user.id,
-            session_type="voice",
-            start_time=datetime.utcnow()
-        )
-        db.add(session)
-        db.commit()
-        db.refresh(session)
+        session_id = firestore_service.create_session({
+            'user_id': user_id,
+            'session_type': 'voice'
+        })
+        session = firestore_service.get_session_by_id(session_id)
     
-    # Save analysis to database
-    voice_analysis = VoiceAnalysis(
-        user_id=current_user.id,
-        session_id=session.id,
-        audio_file_path=file_path,
-        duration=analysis_result.get("duration", 0),
-        pitch=analysis_result.get("pitch", 0),
-        energy=analysis_result.get("energy", 0),
-        mfcc_features=str(analysis_result.get("mfcc_features", [])),
-        emotion_detected=analysis_result.get("emotion", "neutral"),
-        depression_indicator=analysis_result.get("depression_score", 0),
-        is_fake=is_fake,
-        fake_confidence=fake_confidence
-    )
-    db.add(voice_analysis)
+    # Save analysis to Firestore
+    firestore_service.create_voice_analysis({
+        'user_id': user_id,
+        'session_id': session['id'],
+        'audio_file_path': file_path,
+        'duration': analysis_result.get("duration", 0),
+        'pitch': analysis_result.get("pitch", 0),
+        'energy': analysis_result.get("energy", 0),
+        'mfcc_features': json.dumps(analysis_result.get("mfcc_features", [])),
+        'emotion_detected': analysis_result.get("emotion", "neutral"),
+        'depression_indicator': analysis_result.get("depression_score", 0),
+        'is_fake': is_fake,
+        'fake_confidence': fake_confidence
+    })
     
     # Update session
-    session.depression_score = analysis_result.get("depression_score", 0)
-    session.risk_level = analysis_result.get("risk_level", "low")
-    db.commit()
+    firestore_service.update_session(session['id'], {
+        'depression_score': analysis_result.get("depression_score", 0),
+        'risk_level': analysis_result.get("risk_level", "low")
+    })
     
     # Create alert if fake call bot detected
     if is_fake and fake_confidence > 0.7:
-        from app.database import AdminAlert
-        alert = AdminAlert(
-            user_id=current_user.id,
-            alert_type="fake_detected",
-            severity="high",
-            message=f"Potential call bot detected in voice analysis. Confidence: {fake_confidence:.2f}. Language: {language}."
-        )
-        db.add(alert)
-        db.commit()
+        firestore_service.create_alert({
+            'user_id': user_id,
+            'alert_type': 'fake_detected',
+            'severity': 'high',
+            'message': f"Potential call bot detected in voice analysis. Confidence: {fake_confidence:.2f}. Language: {language}."
+        })
     
     return VoiceAnalysisResponse(
-        session_id=session.id,
+        session_id=session['id'],
         emotion=analysis_result.get("emotion", "neutral"),
         depression_score=analysis_result.get("depression_score", 0),
         risk_level=analysis_result.get("risk_level", "low"),
@@ -161,23 +157,21 @@ async def analyze_voice(
 
 @router.get("/history")
 async def get_voice_history(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user)
 ):
-    """Get user's voice analysis history"""
-    analyses = db.query(VoiceAnalysis).filter(
-        VoiceAnalysis.user_id == current_user.id
-    ).order_by(VoiceAnalysis.created_at.desc()).all()
+    """Get user's voice analysis history from Firestore"""
+    user_id = current_user.get('id')
+    analyses = firestore_service.get_user_voice_analyses(user_id)
     
     return [
         {
-            "id": analysis.id,
-            "session_id": analysis.session_id,
-            "emotion": analysis.emotion_detected,
-            "depression_score": analysis.depression_indicator,
-            "is_fake": analysis.is_fake,
-            "fake_confidence": analysis.fake_confidence,
-            "created_at": analysis.created_at
+            "id": analysis.get('id'),
+            "session_id": analysis.get('session_id'),
+            "emotion": analysis.get('emotion_detected'),
+            "depression_score": analysis.get('depression_indicator'),
+            "is_fake": analysis.get('is_fake', False),
+            "fake_confidence": analysis.get('fake_confidence'),
+            "created_at": analysis.get('created_at')
         }
         for analysis in analyses
     ]

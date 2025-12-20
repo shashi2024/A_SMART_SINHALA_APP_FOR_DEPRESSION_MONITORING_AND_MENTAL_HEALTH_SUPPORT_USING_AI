@@ -1,21 +1,20 @@
 """
-Authentication routes
+Authentication routes - Using Firestore
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
-from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
-from passlib.context import CryptContext
-from app.database import get_db, User
+import bcrypt
 from app.config import settings
+from app.services.firestore_service import FirestoreService
 
 router = APIRouter()
 security = HTTPBearer()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+firestore_service = FirestoreService()
 
 class UserRegister(BaseModel):
     username: str
@@ -32,12 +31,27 @@ class Token(BaseModel):
     token_type: str
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify password"""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verify password using bcrypt"""
+    try:
+        password_bytes = plain_password.encode('utf-8')
+        # Bcrypt has 72-byte limit, truncate if necessary
+        if len(password_bytes) > 72:
+            password_bytes = password_bytes[:72]
+        return bcrypt.checkpw(password_bytes, hashed_password.encode('utf-8'))
+    except Exception as e:
+        print(f"[ERROR] Password verification failed: {e}")
+        return False
 
 def get_password_hash(password: str) -> str:
-    """Hash password"""
-    return pwd_context.hash(password)
+    """Hash password using bcrypt"""
+    password_bytes = password.encode('utf-8')
+    # Bcrypt has 72-byte limit, truncate if necessary
+    if len(password_bytes) > 72:
+        password_bytes = password_bytes[:72]
+    # Generate salt and hash
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     """Create JWT token"""
@@ -51,10 +65,9 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     return encoded_jwt
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
-    """Get current authenticated user"""
+    """Get current authenticated user from Firestore"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -69,45 +82,57 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
     
-    user = db.query(User).filter(User.username == username).first()
+    user = firestore_service.get_user_by_username(username)
     if user is None:
         raise credentials_exception
     return user
 
 @router.post("/register", response_model=Token)
-async def register(user_data: UserRegister, db: Session = Depends(get_db)):
-    """Register new user"""
-    # Check if user exists
-    if db.query(User).filter(User.username == user_data.username).first():
-        raise HTTPException(status_code=400, detail="Username already registered")
-    if db.query(User).filter(User.email == user_data.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    # Create new user
-    hashed_password = get_password_hash(user_data.password)
-    db_user = User(
-        username=user_data.username,
-        email=user_data.email,
-        hashed_password=hashed_password,
-        phone_number=user_data.phone_number
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    
-    # Create access token
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": db_user.username}, expires_delta=access_token_expires
-    )
-    
-    return {"access_token": access_token, "token_type": "bearer"}
+async def register(user_data: UserRegister):
+    """Register new user in Firestore"""
+    try:
+        # Check if user exists
+        if firestore_service.get_user_by_username(user_data.username):
+            raise HTTPException(status_code=400, detail="Username already registered")
+        if firestore_service.get_user_by_email(user_data.email):
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Create new user
+        hashed_password = get_password_hash(user_data.password)
+        user_data_dict = {
+            'username': user_data.username,
+            'email': user_data.email,
+            'hashed_password': hashed_password,
+            'is_active': True,
+            'is_admin': False
+        }
+        
+        # Only add phone_number if provided
+        if user_data.phone_number:
+            user_data_dict['phone_number'] = user_data.phone_number
+        
+        user_id = firestore_service.create_user(user_data_dict)
+        
+        # Create access token
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user_data.username}, expires_delta=access_token_expires
+        )
+        
+        return {"access_token": access_token, "token_type": "bearer"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Registration failed: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
 @router.post("/login", response_model=Token)
-async def login(user_data: UserLogin, db: Session = Depends(get_db)):
-    """Login user"""
-    user = db.query(User).filter(User.username == user_data.username).first()
-    if not user or not verify_password(user_data.password, user.hashed_password):
+async def login(user_data: UserLogin):
+    """Login user from Firestore"""
+    user = firestore_service.get_user_by_username(user_data.username)
+    if not user or not verify_password(user_data.password, user.get('hashed_password', '')):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -116,18 +141,47 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data={"sub": user_data.username}, expires_delta=access_token_expires
     )
     
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me")
-async def get_current_user_info(current_user: User = Depends(get_current_user)):
+async def get_current_user_info(current_user: dict = Depends(get_current_user)):
     """Get current user information"""
     return {
-        "id": current_user.id,
-        "username": current_user.username,
-        "email": current_user.email,
-        "is_admin": current_user.is_admin
+        "id": current_user.get('id'),
+        "username": current_user.get('username'),
+        "email": current_user.get('email'),
+        "is_admin": current_user.get('is_admin', False)
     }
+
+class FCMTokenUpdate(BaseModel):
+    fcm_token: str
+
+@router.post("/fcm-token")
+async def update_fcm_token(
+    token_data: FCMTokenUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update user's FCM token for push notifications in Firestore"""
+    try:
+        user_id = current_user.get('id')
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID not found")
+        
+        # Update FCM token in Firestore
+        firestore_service.update_user(user_id, {
+            'fcm_token': token_data.fcm_token
+        })
+        
+        # Also update real-time data
+        from app.services.firebase_service import update_user_realtime_data
+        update_user_realtime_data(user_id, {
+            'fcm_token': token_data.fcm_token
+        })
+        
+        return {"message": "FCM token updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update FCM token: {str(e)}")
 

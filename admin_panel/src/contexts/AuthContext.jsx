@@ -9,7 +9,21 @@ export function useAuth() {
 
 export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const checkAdminStatus = async () => {
+    try {
+      const response = await api.get('/auth/me');
+      const userInfo = response.data;
+      setIsAdmin(userInfo.is_admin === true);
+      return userInfo.is_admin === true;
+    } catch (error) {
+      console.error('Failed to check admin status:', error);
+      setIsAdmin(false);
+      return false;
+    }
+  };
 
   useEffect(() => {
     // Check if user is already logged in
@@ -17,6 +31,8 @@ export function AuthProvider({ children }) {
     if (token) {
       api.setToken(token);
       setIsAuthenticated(true);
+      // Check if user is admin
+      checkAdminStatus();
     }
     setLoading(false);
   }, []);
@@ -27,6 +43,11 @@ export function AuthProvider({ children }) {
     localStorage.setItem('token', token);
     api.setToken(token);
     setIsAuthenticated(true);
+    // Check admin status after login
+    const adminStatus = await checkAdminStatus();
+    if (!adminStatus) {
+      throw new Error('Access denied: Admin privileges required');
+    }
   };
 
   const logout = () => {
@@ -37,6 +58,7 @@ export function AuthProvider({ children }) {
 
   const value = {
     isAuthenticated,
+    isAdmin,
     login,
     logout,
   };
