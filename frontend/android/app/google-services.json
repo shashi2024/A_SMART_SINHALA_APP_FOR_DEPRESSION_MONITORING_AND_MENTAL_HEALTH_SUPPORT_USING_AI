@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "421129802790",
+    "project_id": "depressioin",
+    "storage_bucket": "depressioin.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:421129802790:android:04b22e01e7aa35dc9482e7",
+        "android_client_info": {
+          "package_name": "Depression_App.ID123"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMHpU66PHAWdr5jGVRdWhcHDWp0tcOiI8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:421129802790:android:ab6a353fa73201a69482e7",
+        "android_client_info": {
+          "package_name": "com.example.depression_monitoring_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMHpU66PHAWdr5jGVRdWhcHDWp0tcOiI8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

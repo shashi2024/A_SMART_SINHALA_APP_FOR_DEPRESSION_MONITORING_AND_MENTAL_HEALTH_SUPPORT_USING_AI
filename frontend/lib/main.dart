@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/voice_call_screen.dart';
@@ -11,7 +13,14 @@ import 'providers/voice_provider.dart';
 import 'services/api_service.dart';
 import 'services/sensor_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
   runApp(const MyApp());
 }
 

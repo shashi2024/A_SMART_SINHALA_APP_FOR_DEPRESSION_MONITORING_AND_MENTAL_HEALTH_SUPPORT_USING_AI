@@ -1,22 +1,22 @@
 """
-Digital Twin routes for mental health profile management
+Digital Twin routes for mental health profile management - Using Firestore
 """
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
-from sqlalchemy.orm import Session
 from datetime import datetime
 import json
 
-from app.database import get_db, User, DigitalTwin, Session as DBSession
 from app.routes.auth import get_current_user
 from app.services.digital_twin_service import DigitalTwinService
+from app.services.firestore_service import FirestoreService
 
 router = APIRouter()
+firestore_service = FirestoreService()
 
 class DigitalTwinResponse(BaseModel):
-    user_id: int
+    user_id: str  # Changed from int to str for Firestore
     mental_health_profile: Dict[str, Any]
     risk_factors: Dict[str, Any]
     recommendations: list
@@ -24,45 +24,54 @@ class DigitalTwinResponse(BaseModel):
 
 @router.get("/profile", response_model=DigitalTwinResponse)
 async def get_digital_twin(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user)
 ):
-    """Get user's digital twin profile"""
-    digital_twin = db.query(DigitalTwin).filter(DigitalTwin.user_id == current_user.id).first()
+    """Get user's digital twin profile from Firestore"""
+    user_id = current_user.get('id')
+    digital_twin = firestore_service.get_digital_twin(user_id)
     
     if not digital_twin:
         # Create new digital twin
         twin_service = DigitalTwinService()
-        profile = await twin_service.create_profile(current_user.id, db)
-        digital_twin = db.query(DigitalTwin).filter(DigitalTwin.user_id == current_user.id).first()
+        profile = await twin_service.create_profile(user_id, None)  # Pass None instead of db
+        digital_twin = firestore_service.get_digital_twin(user_id)
+    
+    # Parse JSON strings if they exist
+    mental_health_profile = digital_twin.get('mental_health_profile', {})
+    if isinstance(mental_health_profile, str):
+        mental_health_profile = json.loads(mental_health_profile)
+    
+    risk_factors = digital_twin.get('risk_factors', {})
+    if isinstance(risk_factors, str):
+        risk_factors = json.loads(risk_factors)
     
     return DigitalTwinResponse(
-        user_id=digital_twin.user_id,
-        mental_health_profile=json.loads(digital_twin.mental_health_profile) if digital_twin.mental_health_profile else {},
-        risk_factors=json.loads(digital_twin.risk_factors) if digital_twin.risk_factors else {},
+        user_id=user_id,
+        mental_health_profile=mental_health_profile or {},
+        risk_factors=risk_factors or {},
         recommendations=[],
-        last_updated=digital_twin.last_updated
+        last_updated=digital_twin.get('last_updated', datetime.now())
     )
 
 @router.post("/update")
 async def update_digital_twin(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user)
 ):
-    """Update digital twin with latest data"""
+    """Update digital twin with latest data in Firestore"""
+    user_id = current_user.get('id')
     twin_service = DigitalTwinService()
-    updated_profile = await twin_service.update_profile(current_user.id, db)
+    updated_profile = await twin_service.update_profile(user_id, None)  # Pass None instead of db
     
     return {"message": "Digital twin updated", "profile": updated_profile}
 
 @router.get("/analytics")
 async def get_analytics(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user)
 ):
-    """Get analytics from digital twin"""
+    """Get analytics from digital twin in Firestore"""
+    user_id = current_user.get('id')
     twin_service = DigitalTwinService()
-    analytics = await twin_service.get_analytics(current_user.id, db)
+    analytics = await twin_service.get_analytics(user_id, None)  # Pass None instead of db
     
     return analytics
 

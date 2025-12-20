@@ -11,9 +11,14 @@ from typing import Optional, List
 import uvicorn
 from datetime import datetime
 
-from app.routes import auth, chatbot, voice, typing, admin, digital_twin
-from app.database import init_db
 from app.config import settings
+from app.services.firebase_service import initialize_firebase
+
+# Initialize Firebase BEFORE importing routes (routes need FirestoreService)
+# This ensures Firebase is ready when routes are imported
+initialize_firebase()
+
+from app.routes import auth, chatbot, voice, typing, admin, digital_twin
 
 app = FastAPI(
     title="Depression Monitoring API",
@@ -40,8 +45,15 @@ app.include_router(digital_twin.router, prefix="/api/digital-twin", tags=["Digit
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database on startup"""
-    await init_db()
+    """Initialize services on startup"""
+    # Firebase is already initialized before routes import
+    # Just verify it's working
+    from app.services.firebase_service import is_firebase_initialized
+    if not is_firebase_initialized():
+        print("⚠️  Warning: Firebase not initialized. Firestore features will not work.")
+        print("   Please set FIREBASE_CREDENTIALS in .env file")
+    else:
+        print("✅ Firebase ready for use")
 
 @app.get("/")
 async def root():

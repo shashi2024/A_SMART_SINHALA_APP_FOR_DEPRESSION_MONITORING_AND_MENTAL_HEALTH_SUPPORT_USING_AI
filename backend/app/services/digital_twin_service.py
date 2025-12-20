@@ -1,19 +1,21 @@
 """
-Digital Twin service for mental health profile management
+Digital Twin service for mental health profile management - Using Firestore
 """
 
-from typing import Dict, Any
-from sqlalchemy.orm import Session
+from typing import Dict, Any, Optional
 from datetime import datetime
 import json
 
-from app.database import DigitalTwin, Session as DBSession, VoiceAnalysis, TypingAnalysis
+from app.services.firestore_service import FirestoreService
 
 class DigitalTwinService:
     """Service for managing digital twin profiles"""
     
-    async def create_profile(self, user_id: int, db: Session) -> Dict[str, Any]:
-        """Create initial digital twin profile"""
+    def __init__(self):
+        self.firestore_service = FirestoreService()
+    
+    async def create_profile(self, user_id: str, db: Optional[Any] = None) -> Dict[str, Any]:
+        """Create initial digital twin profile in Firestore"""
         profile = {
             "baseline_metrics": {},
             "trends": {},
@@ -22,34 +24,28 @@ class DigitalTwinService:
             "created_at": datetime.utcnow().isoformat()
         }
         
-        digital_twin = DigitalTwin(
-            user_id=user_id,
-            mental_health_profile=json.dumps(profile),
-            risk_factors=json.dumps([]),
-            last_updated=datetime.utcnow()
-        )
-        
-        db.add(digital_twin)
-        db.commit()
-        db.refresh(digital_twin)
+        self.firestore_service.create_or_update_digital_twin(user_id, {
+            'mental_health_profile': json.dumps(profile),
+            'risk_factors': json.dumps([])
+        })
         
         return profile
     
-    async def update_profile(self, user_id: int, db: Session) -> Dict[str, Any]:
-        """Update digital twin with latest data"""
-        digital_twin = db.query(DigitalTwin).filter(DigitalTwin.user_id == user_id).first()
+    async def update_profile(self, user_id: str, db: Optional[Any] = None) -> Dict[str, Any]:
+        """Update digital twin with latest data from Firestore"""
+        digital_twin = self.firestore_service.get_digital_twin(user_id)
         
         if not digital_twin:
             return await self.create_profile(user_id, db)
         
         # Get all sessions
-        sessions = db.query(DBSession).filter(DBSession.user_id == user_id).all()
+        sessions = self.firestore_service.get_user_sessions(user_id)
         
         # Get voice analyses
-        voice_analyses = db.query(VoiceAnalysis).filter(VoiceAnalysis.user_id == user_id).all()
+        voice_analyses = self.firestore_service.get_user_voice_analyses(user_id)
         
         # Get typing analyses
-        typing_analyses = db.query(TypingAnalysis).filter(TypingAnalysis.user_id == user_id).all()
+        typing_analyses = self.firestore_service.get_user_typing_analyses(user_id)
         
         # Build comprehensive profile
         profile = {
@@ -64,23 +60,32 @@ class DigitalTwinService:
         
         risk_factors = self._identify_risk_factors(sessions, voice_analyses, typing_analyses)
         
-        digital_twin.mental_health_profile = json.dumps(profile)
-        digital_twin.risk_factors = json.dumps(risk_factors)
-        digital_twin.last_updated = datetime.utcnow()
-        
-        db.commit()
+        # Update in Firestore
+        self.firestore_service.create_or_update_digital_twin(user_id, {
+            'mental_health_profile': json.dumps(profile),
+            'risk_factors': json.dumps(risk_factors)
+        })
         
         return profile
     
-    async def get_analytics(self, user_id: int, db: Session) -> Dict[str, Any]:
-        """Get analytics from digital twin"""
-        digital_twin = db.query(DigitalTwin).filter(DigitalTwin.user_id == user_id).first()
+    async def get_analytics(self, user_id: str, db: Optional[Any] = None) -> Dict[str, Any]:
+        """Get analytics from digital twin in Firestore"""
+        digital_twin = self.firestore_service.get_digital_twin(user_id)
         
         if not digital_twin:
             return {}
         
-        profile = json.loads(digital_twin.mental_health_profile) if digital_twin.mental_health_profile else {}
-        risk_factors = json.loads(digital_twin.risk_factors) if digital_twin.risk_factors else []
+        mental_health_profile = digital_twin.get('mental_health_profile', {})
+        if isinstance(mental_health_profile, str):
+            profile = json.loads(mental_health_profile)
+        else:
+            profile = mental_health_profile or {}
+        
+        risk_factors_data = digital_twin.get('risk_factors', [])
+        if isinstance(risk_factors_data, str):
+            risk_factors = json.loads(risk_factors_data)
+        else:
+            risk_factors = risk_factors_data or []
         
         return {
             "profile": profile,
@@ -90,7 +95,7 @@ class DigitalTwinService:
     
     def _calculate_avg_score(self, sessions: list) -> float:
         """Calculate average depression score"""
-        scores = [s.depression_score for s in sessions if s.depression_score is not None]
+        scores = [s.get('depression_score') for s in sessions if s.get('depression_score') is not None]
         return sum(scores) / len(scores) if scores else 0.0
     
     def _determine_overall_risk(self, sessions: list) -> str:
@@ -98,8 +103,15 @@ class DigitalTwinService:
         if not sessions:
             return "low"
         
-        recent_sessions = sorted(sessions, key=lambda s: s.start_time, reverse=True)[:5]
-        risk_levels = [s.risk_level for s in recent_sessions if s.risk_level]
+        # Sort by start_time (handle both datetime objects and timestamps)
+        def get_start_time(s):
+            start_time = s.get('start_time')
+            if isinstance(start_time, datetime):
+                return start_time
+            return datetime.now()  # Fallback
+        
+        recent_sessions = sorted(sessions, key=get_start_time, reverse=True)[:5]
+        risk_levels = [s.get('risk_level') for s in recent_sessions if s.get('risk_level')]
         
         if "severe" in risk_levels:
             return "severe"
@@ -115,9 +127,15 @@ class DigitalTwinService:
         if len(sessions) < 2:
             return {}
         
-        sorted_sessions = sorted(sessions, key=lambda s: s.start_time)
-        recent_scores = [s.depression_score for s in sorted_sessions[-5:] if s.depression_score is not None]
-        earlier_scores = [s.depression_score for s in sorted_sessions[:-5] if s.depression_score is not None]
+        def get_start_time(s):
+            start_time = s.get('start_time')
+            if isinstance(start_time, datetime):
+                return start_time
+            return datetime.now()
+        
+        sorted_sessions = sorted(sessions, key=get_start_time)
+        recent_scores = [s.get('depression_score') for s in sorted_sessions[-5:] if s.get('depression_score') is not None]
+        earlier_scores = [s.get('depression_score') for s in sorted_sessions[:-5] if s.get('depression_score') is not None]
         
         if not recent_scores or not earlier_scores:
             return {}
@@ -142,13 +160,13 @@ class DigitalTwinService:
         risk_factors = []
         
         # Check for high depression scores
-        high_scores = [s for s in sessions if s.depression_score and s.depression_score > 0.7]
+        high_scores = [s for s in sessions if s.get('depression_score') and s.get('depression_score') > 0.7]
         if high_scores:
             risk_factors.append("Consistently high depression scores")
         
         # Check for fake detections
-        fake_voice = [v for v in voice_analyses if v.is_fake]
-        fake_typing = [t for t in typing_analyses if t.is_fake]
+        fake_voice = [v for v in voice_analyses if v.get('is_fake', False)]
+        fake_typing = [t for t in typing_analyses if t.get('is_fake', False)]
         
         if fake_voice:
             risk_factors.append("Suspicious voice patterns detected")

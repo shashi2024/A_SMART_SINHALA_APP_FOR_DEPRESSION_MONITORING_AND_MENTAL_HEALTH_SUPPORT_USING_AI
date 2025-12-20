@@ -31,6 +31,10 @@ function Dashboard() {
       setUsers(response.data.users);
     } catch (error) {
       console.error('Failed to load dashboard:', error);
+      if (error.response?.status === 403) {
+        alert('Access denied: Admin privileges required');
+        navigate('/login');
+      }
     } finally {
       setLoading(false);
     }
