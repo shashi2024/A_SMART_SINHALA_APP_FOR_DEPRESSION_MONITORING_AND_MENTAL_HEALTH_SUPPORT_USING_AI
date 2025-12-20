@@ -18,7 +18,11 @@ function Login() {
       await login(username, password);
       navigate('/dashboard');
     } catch (err) {
-      setError('Invalid credentials');
+      if (err.message && err.message.includes('Admin privileges')) {
+        setError('Access denied: Admin privileges required');
+      } else {
+        setError('Invalid credentials');
+      }
     }
   };
 
