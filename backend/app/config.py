@@ -3,7 +3,10 @@ Configuration settings for the application
 """
 
 import os
+import json
+from typing import List, Union
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 
 class Settings(BaseSettings):
     # Server settings
@@ -12,7 +15,8 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     
     # Database settings
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./depression_monitoring.db")
+    # Using Firestore (Firebase) as primary database
+    # No MySQL/SQLite configuration needed
     
     # JWT settings
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
@@ -20,7 +24,23 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # CORS settings
-    ALLOWED_ORIGINS: list = ["*"]
+    ALLOWED_ORIGINS: Union[str, List[str]] = "*"
+    
+    @field_validator('ALLOWED_ORIGINS', mode='before')
+    @classmethod
+    def parse_cors_origins(cls, v):
+        """Parse CORS origins from string or list"""
+        if isinstance(v, str):
+            # Handle "*" for allow all
+            if v.strip() == "*":
+                return ["*"]
+            # Try to parse as JSON list
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                # If not JSON, treat as comma-separated string
+                return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
     
     # AI/ML settings
     MODEL_PATH: str = "./models"
@@ -44,6 +64,7 @@ class Settings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        extra = "ignore"  # Ignore extra fields in .env (like old MySQL settings)
 
 settings = Settings()
 
