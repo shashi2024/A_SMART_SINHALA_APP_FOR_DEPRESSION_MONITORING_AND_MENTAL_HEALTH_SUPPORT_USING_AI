@@ -113,3 +113,16 @@ flutter run -d chrome --release
 
 **The app should now compile and run successfully!** 🎉
 
+
+
+
+
+
+
+
+
+
+
+
+
+

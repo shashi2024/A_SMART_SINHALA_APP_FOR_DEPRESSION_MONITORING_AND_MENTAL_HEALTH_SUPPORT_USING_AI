@@ -106,3 +106,16 @@ Everyone uses the same Firestore database - **no setup needed!**
 Your app is now **100% Firestore** with easy team sharing! 🚀
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+

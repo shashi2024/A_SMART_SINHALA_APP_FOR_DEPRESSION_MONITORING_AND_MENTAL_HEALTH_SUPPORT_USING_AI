@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:io';
 
@@ -11,10 +12,12 @@ class ApiService {
   // To find your computer's IP address:
   //   Windows: Run 'ipconfig' and look for IPv4 Address
   //   Linux/Mac: Run 'ifconfig' or 'ip addr show'
-  static const String baseUrl = 'http://192.168.122.173:8000/api';
   
-  // Uncomment and set your IP address for physical device:
-  // static const String baseUrl = 'http://192.168.1.100:8000/api';
+  // For Web/Chrome - use localhost
+  static const String baseUrl = 'http://localhost:8000/api';
+  
+  // Uncomment and set your IP address for physical device or if localhost doesn't work:
+  // static const String baseUrl = 'http://192.168.122.173:8000/api';
   
   String? _token;
 
@@ -28,19 +31,34 @@ class ApiService {
       };
 
   Future<Map<String, dynamic>> login(String username, String password) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/login'),
-      headers: _headers,
-      body: jsonEncode({
-        'username': username,
-        'password': password,
-      }),
-    );
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/login'),
+        headers: _headers,
+        body: jsonEncode({
+          'username': username,
+          'password': password,
+        }),
+      );
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception('Login failed');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorBody = response.body;
+        debugPrint('Login API Error: ${response.statusCode} - $errorBody');
+        try {
+          final errorJson = jsonDecode(errorBody);
+          throw Exception(errorJson['detail'] ?? 'Login failed: ${response.statusCode}');
+        } catch (_) {
+          throw Exception('Login failed: ${response.statusCode} - $errorBody');
+        }
+      }
+    } catch (e) {
+      if (e.toString().contains('Exception')) {
+        rethrow;
+      }
+      debugPrint('Login network error: $e');
+      throw Exception('Network error: ${e.toString()}');
     }
   }
 
@@ -49,20 +67,35 @@ class ApiService {
     String email,
     String password,
   ) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/register'),
-      headers: _headers,
-      body: jsonEncode({
-        'username': username,
-        'email': email,
-        'password': password,
-      }),
-    );
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/register'),
+        headers: _headers,
+        body: jsonEncode({
+          'username': username,
+          'email': email,
+          'password': password,
+        }),
+      );
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception('Registration failed');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorBody = response.body;
+        debugPrint('Register API Error: ${response.statusCode} - $errorBody');
+        try {
+          final errorJson = jsonDecode(errorBody);
+          throw Exception(errorJson['detail'] ?? 'Registration failed: ${response.statusCode}');
+        } catch (_) {
+          throw Exception('Registration failed: ${response.statusCode} - $errorBody');
+        }
+      }
+    } catch (e) {
+      if (e.toString().contains('Exception')) {
+        rethrow;
+      }
+      debugPrint('Register network error: $e');
+      throw Exception('Network error: ${e.toString()}');
     }
   }
 
@@ -81,13 +114,15 @@ class ApiService {
 
   Future<Map<String, dynamic>> sendChatMessage(
     String message, {
-    int? sessionId,
+    String? sessionId,
+    String? language,
     Map<String, dynamic>? typingData,
     Map<String, dynamic>? sensorData,
   }) async {
     final body = {
       'message': message,
       if (sessionId != null) 'session_id': sessionId,
+      if (language != null) 'language': language,
     };
 
     final response = await http.post(
@@ -99,7 +134,10 @@ class ApiService {
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Failed to send message');
+      // Provide more detailed error information
+      final errorBody = response.body;
+      debugPrint('Chat API Error: ${response.statusCode} - $errorBody');
+      throw Exception('Failed to send message: ${response.statusCode} - $errorBody');
     }
   }
 

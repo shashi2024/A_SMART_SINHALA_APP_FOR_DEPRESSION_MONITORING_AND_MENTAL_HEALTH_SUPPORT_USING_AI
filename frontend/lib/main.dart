@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/voice_call_screen.dart';
 import 'screens/profile_screen.dart';
@@ -42,13 +43,34 @@ class MyApp extends StatelessWidget {
           primarySwatch: Colors.blue,
           useMaterial3: true,
         ),
-        home: const HomeScreen(),
+        home: const AuthWrapper(),
         routes: {
+          '/login': (context) => const LoginScreen(),
+          '/home': (context) => const HomeScreen(),
           '/chat': (context) => const ChatScreen(),
           '/voice': (context) => const VoiceCallScreen(),
           '/profile': (context) => const ProfileScreen(),
         },
       ),
+    );
+  }
+}
+
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        // Show login screen if not authenticated
+        if (!authProvider.isAuthenticated) {
+          return const LoginScreen();
+        }
+        
+        // Show home screen if authenticated
+        return const HomeScreen();
+      },
     );
   }
 }

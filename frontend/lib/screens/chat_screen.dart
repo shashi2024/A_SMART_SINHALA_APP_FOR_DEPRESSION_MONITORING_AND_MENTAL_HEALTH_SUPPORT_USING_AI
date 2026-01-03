@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/chatbot_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/sensor_provider.dart';
 import '../services/typing_analyzer.dart';
 
@@ -20,6 +21,15 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _typingAnalyzer.startTracking();
+    
+    // Sync authentication token to chatbot provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final chatbotProvider = Provider.of<ChatbotProvider>(context, listen: false);
+      if (authProvider.token != null) {
+        chatbotProvider.setToken(authProvider.token);
+      }
+    });
   }
 
   @override
@@ -60,11 +70,89 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  void _showLanguageSelector(BuildContext context) async {
+    final chatbotProvider = Provider.of<ChatbotProvider>(context, listen: false);
+    
+    final selectedLanguage = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Language'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RadioListTile<String>(
+              title: const Text('English'),
+              value: 'en',
+              groupValue: chatbotProvider.selectedLanguage,
+              onChanged: (value) => Navigator.pop(context, value),
+            ),
+            RadioListTile<String>(
+              title: const Text('සිංහල (Sinhala)'),
+              value: 'si',
+              groupValue: chatbotProvider.selectedLanguage,
+              onChanged: (value) => Navigator.pop(context, value),
+            ),
+            RadioListTile<String>(
+              title: const Text('தமிழ் (Tamil)'),
+              value: 'ta',
+              groupValue: chatbotProvider.selectedLanguage,
+              onChanged: (value) => Navigator.pop(context, value),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (selectedLanguage != null) {
+      await chatbotProvider.setLanguage(selectedLanguage);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chat with AI Assistant'),
+        actions: [
+          Consumer<ChatbotProvider>(
+            builder: (context, provider, child) {
+              return PopupMenuButton<String>(
+                icon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.language),
+                    const SizedBox(width: 4),
+                    Text(
+                      provider.selectedLanguage == 'si'
+                          ? 'සිංහල'
+                          : provider.selectedLanguage == 'ta'
+                              ? 'தமிழ்'
+                              : 'EN',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+                onSelected: (language) async {
+                  await provider.setLanguage(language);
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'en',
+                    child: Text('English'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'si',
+                    child: Text('සිංහල (Sinhala)'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'ta',
+                    child: Text('தமிழ் (Tamil)'),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
