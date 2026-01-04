@@ -639,11 +639,12 @@ black .
 
 #### 👩‍💻 **IT22169808 - Srimali K.H.J**
 
-**Role:** Social Media Analysis Developer & Admin Panel Designer
+**Role:** AI-Driven Twitter Analysis for Depression Detection
+ & Admin Panel Designer
 
 **Key Contributions:**
-- **Social Media-Based Depression Detection**
-  - Social media data analysis algorithms
+- **AI-Driven Twitter Analysis for Depression Detection**
+  - Twitter Analysis data analysis algorithms
   - Text mining and sentiment analysis from social posts
   - Depression indicators extraction from social media content
   - Pattern recognition in social media behavior
