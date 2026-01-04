@@ -8,7 +8,6 @@
 
 An AI-powered mental health support application with multi-language support (Sinhala, Tamil, English) that monitors depression through voice analysis, typing patterns, and chatbot interactions.
 
----
 
 ## 📋 Table of Contents
 
@@ -173,45 +172,6 @@ npm install
 
 ---
 
-## ⚙️ Configuration
-
-### Backend Configuration
-
-Edit `backend/.env`:
-
-```env
-# Firebase (Required)
-FIREBASE_CREDENTIALS=./firebase-credentials.json
-
-# JWT Settings
-SECRET_KEY=your-secret-key-change-in-production
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-
-# Server Settings
-HOST=0.0.0.0
-PORT=8000
-DEBUG=True
-
-# CORS Settings
-ALLOWED_ORIGINS=*
-
-# Google APIs (Optional)
-GOOGLE_SPEECH_API_KEY=your-api-key-here
-```
-
-### Frontend Configuration
-
-Update API URL in `frontend/lib/services/api_service.dart`:
-
-```dart
-// For local development
-static const String baseUrl = 'http://localhost:8000';
-
-// For mobile device testing (replace with your computer's IP)
-static const String baseUrl = 'http://192.168.1.100:8000';
-```
-
 To find your IP address:
 - **Windows**: Run `ipconfig` in PowerShell
 - **Linux/Mac**: Run `ifconfig` or `ip addr`
@@ -301,7 +261,8 @@ Admin panel will be available at: `http://localhost:5173`
 4. **Run the app**:
    ```bash
    cd frontend
-   flutter run
+   flutter pub get
+   flutter run -d <device ID> 
    ```
 
 ---
