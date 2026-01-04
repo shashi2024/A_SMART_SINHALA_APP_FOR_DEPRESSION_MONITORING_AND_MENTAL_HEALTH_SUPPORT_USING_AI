@@ -32,17 +32,20 @@ An AI-powered mental health support application with multi-language support (Sin
 - **🎤 Voice Call Analysis** - Real-time depression detection from voice with call bot detection
 - **💬 AI Chatbot** - Conversational support in Sinhala, Tamil, and English
 - **⌨️ Typing Pattern Analysis** - Keystroke dynamics for mental health assessment
+- **📱 Biofeedback System** - Depression detection using mobile sensor data (accelerometer, gyroscope, etc.)
+- **📱 Social Media Analysis** - Depression detection through social media sentiment and behavior analysis
 - **🌐 Multi-language Support** - Sinhala (සිංහල), Tamil (தமிழ்), and English
 - **📊 Admin Dashboard** - Comprehensive monitoring and alert system
 - **🔐 Secure Authentication** - JWT-based authentication with Firebase
 - **📱 Cross-platform Mobile App** - Android, iOS, Web, Windows, macOS, Linux
 
 ### AI/ML Capabilities
-- Depression detection using Random Forest Classifier
-- Voice emotion analysis with SVM
-- Typing pattern analysis with Gradient Boosting
-- PHQ-9 questionnaire integration
-- Safety guardrails for crisis detection
+- **Voice-based Detection** - Depression detection using Random Forest Classifier and voice emotion analysis with SVM
+- **Typing Pattern Analysis** - Keystroke dynamics analysis with Gradient Boosting Classifier
+- **Biofeedback Analysis** - Physiological data analysis from mobile sensors for depression indicators
+- **Social Media Sentiment Analysis** - Text mining and sentiment analysis from social media posts for depression detection
+- **PHQ-9 Integration** - Standardized questionnaire for depression screening
+- **Safety Guardrails** - Crisis detection and escalation mechanisms
 
 ---
 
@@ -171,6 +174,46 @@ npm install
 ```
 
 ---
+
+<<<<<<< HEAD
+## ⚙️ Configuration
+
+### Backend Configuration
+
+Edit `backend/.env`:
+
+```env
+# Firebase (Required)
+FIREBASE_CREDENTIALS=./firebase-credentials.json
+
+# JWT Settings
+SECRET_KEY=your-secret-key-change-in-production
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# Server Settings
+HOST=0.0.0.0
+PORT=8000
+DEBUG=True
+
+# CORS Settings
+ALLOWED_ORIGINS=*
+
+# Google APIs (Optional)
+GOOGLE_SPEECH_API_KEY=your-api-key-here
+```
+
+### Frontend Configuration
+
+Update API URL in `frontend/lib/services/api_service.dart`:
+
+```dart
+// For local development
+static const String baseUrl = 'http://localhost:8000';
+
+// For mobile device testing (replace with your computer's IP)
+static const String baseUrl = 'http://192.168.1.100:8000';
+```
 
 To find your IP address:
 - **Windows**: Run `ipconfig` in PowerShell
