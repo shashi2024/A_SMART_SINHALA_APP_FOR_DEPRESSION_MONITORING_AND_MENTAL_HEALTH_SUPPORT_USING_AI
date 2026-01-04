@@ -30,15 +30,28 @@ class ApiService {
         if (_token != null) 'Authorization': 'Bearer $_token',
       };
 
-  Future<Map<String, dynamic>> login(String username, String password) async {
+  Future<Map<String, dynamic>> login(String usernameOrEmail, String password) async {
     try {
+      // Determine if input is email or username by checking for @ symbol
+      final Map<String, dynamic> loginData;
+      if (usernameOrEmail.contains('@')) {
+        // It's an email
+        loginData = {
+          'email': usernameOrEmail,
+          'password': password,
+        };
+      } else {
+        // It's a username
+        loginData = {
+          'username': usernameOrEmail,
+          'password': password,
+        };
+      }
+      
       final response = await http.post(
         Uri.parse('$baseUrl/auth/login'),
         headers: _headers,
-        body: jsonEncode({
-          'username': username,
-          'password': password,
-        }),
+        body: jsonEncode(loginData),
       );
 
       if (response.statusCode == 200) {
@@ -65,17 +78,23 @@ class ApiService {
   Future<Map<String, dynamic>> register(
     String username,
     String email,
-    String password,
-  ) async {
+    String password, [
+    String? phoneNumber,
+  ]) async {
     try {
+      final body = {
+        'username': username,
+        'email': email,
+        'password': password,
+      };
+      if (phoneNumber != null && phoneNumber.isNotEmpty) {
+        body['phone_number'] = phoneNumber;
+      }
+      
       final response = await http.post(
         Uri.parse('$baseUrl/auth/register'),
         headers: _headers,
-        body: jsonEncode({
-          'username': username,
-          'email': email,
-          'password': password,
-        }),
+        body: jsonEncode(body),
       );
 
       if (response.statusCode == 200) {

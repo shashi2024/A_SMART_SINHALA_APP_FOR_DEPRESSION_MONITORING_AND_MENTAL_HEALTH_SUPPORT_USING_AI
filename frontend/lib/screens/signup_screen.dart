@@ -3,38 +3,37 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chatbot_provider.dart';
+import 'login_screen.dart'; // For AppColors
 
-// Color Palette Constants
-class AppColors {
-  static const Color darkGreen = Color(0xFF185846);
-  static const Color paleSageGreen = Color(0xFFD2DEBF);
-  static const Color lightPeach = Color(0xFFECD0B6);
-  static const Color creamYellow = Color(0xFFF2E8C9);
-  static const Color veryLightBlue = Color(0xFFE5F1F5);
-}
-
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class SignUpScreen extends StatefulWidget {
+  const SignUpScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<SignUpScreen> createState() => _SignUpScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _SignUpScreenState extends State<SignUpScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _phoneController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   @override
   void dispose() {
+    _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleSignIn() async {
+  Future<void> _handleSignUp() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -50,15 +49,16 @@ class _LoginScreenState extends State<LoginScreen> {
     String? errorMessage;
 
     try {
-      // Login with email - backend now supports email login
-      success = await authProvider.login(
+      success = await authProvider.register(
+        _usernameController.text.trim(),
         _emailController.text.trim(),
         _passwordController.text,
+        _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
       );
     } catch (e) {
       success = false;
       errorMessage = e.toString();
-      debugPrint('Auth error: $e');
+      debugPrint('Registration error: $e');
     }
 
     setState(() {
@@ -77,15 +77,15 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } else {
       if (mounted) {
-        String displayMessage = 'Login failed. Please check your credentials and ensure the backend server is running.';
+        String displayMessage = 'Registration failed. Please check your information and ensure the backend server is running.';
         
         // Check for specific error types
         if (errorMessage != null) {
           final errorStr = errorMessage.toLowerCase();
           if (errorStr.contains('connection') || errorStr.contains('failed host lookup') || errorStr.contains('network')) {
             displayMessage = 'Cannot connect to server. Please ensure the backend is running at http://localhost:8000';
-          } else if (errorStr.contains('401') || errorStr.contains('unauthorized')) {
-            displayMessage = 'Invalid email or password. Please try again.';
+          } else if (errorStr.contains('already registered') || errorStr.contains('already exists')) {
+            displayMessage = 'Username or email already exists. Please use different credentials.';
           } else if (errorStr.contains('400')) {
             displayMessage = 'Invalid input. Please check your information.';
           }
@@ -114,16 +114,27 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 60),
+                const SizedBox(height: 40),
+                
+                // Back Button
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    icon: Icon(Icons.arrow_back, color: Colors.grey[800]),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ),
+                
+                const SizedBox(height: 20),
                 
                 // Logo
                 _buildLogo(),
                 
-                const SizedBox(height: 40),
+                const SizedBox(height: 32),
                 
                 // Welcome Message
                 Text(
-                  'Welcome Back!',
+                  'Create Account',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 32,
@@ -137,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 
                 // Subtitle
                 Text(
-                  'Let\'s continue your educational journey!',
+                  'Join us and start your mental health journey!',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,
@@ -146,7 +157,46 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 
-                const SizedBox(height: 48),
+                const SizedBox(height: 40),
+                
+                // Username Field
+                Text(
+                  'Username',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[800],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _usernameController,
+                  decoration: InputDecoration(
+                    hintText: 'Enter your username',
+                    hintStyle: TextStyle(color: Colors.grey[400]),
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a username';
+                    }
+                    if (value.trim().length < 3) {
+                      return 'Username must be at least 3 characters';
+                    }
+                    return null;
+                  },
+                ),
+                
+                const SizedBox(height: 20),
                 
                 // Email Field
                 Text(
@@ -186,7 +236,38 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
                 
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
+                
+                // Phone Field (Optional)
+                Text(
+                  'Mobile Number (Optional)',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[800],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    hintText: 'Enter your mobile number',
+                    hintStyle: TextStyle(color: Colors.grey[400]),
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 20),
                 
                 // Password Field
                 Text(
@@ -232,45 +313,71 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your password';
                     }
+                    if (value.length < 6) {
+                      return 'Password must be at least 6 characters';
+                    }
                     return null;
                   },
                 ),
                 
-                const SizedBox(height: 12),
+                const SizedBox(height: 20),
                 
-                // Forgot Password Link
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {
-                      // TODO: Implement forgot password functionality
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Forgot password functionality coming soon'),
-                        ),
-                      );
-                    },
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                // Confirm Password Field
+                Text(
+                  'Confirm Password',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[800],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _confirmPasswordController,
+                  obscureText: _obscureConfirmPassword,
+                  decoration: InputDecoration(
+                    hintText: 'Confirm your password',
+                    hintStyle: TextStyle(color: Colors.grey[400]),
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
                     ),
-                    child: Text(
-                      'Forgot Password?',
-                      style: TextStyle(
-                        fontSize: 14,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureConfirmPassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                         color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
                       ),
+                      onPressed: () {
+                        setState(() {
+                          _obscureConfirmPassword = !_obscureConfirmPassword;
+                        });
+                      },
                     ),
                   ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please confirm your password';
+                    }
+                    if (value != _passwordController.text) {
+                      return 'Passwords do not match';
+                    }
+                    return null;
+                  },
                 ),
                 
                 const SizedBox(height: 32),
                 
-                // Sign In Button
+                // Sign Up Button
                 ElevatedButton(
-                  onPressed: _isLoading ? null : _handleSignIn,
+                  onPressed: _isLoading ? null : _handleSignUp,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.darkGreen,
                     foregroundColor: Colors.white,
@@ -290,7 +397,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         )
                       : const Text(
-                          'Sign In',
+                          'Sign Up',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -300,12 +407,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 
                 const SizedBox(height: 24),
                 
-                // Sign Up Link
+                // Sign In Link
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'Don\'t have an account? ',
+                      'Already have an account? ',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[600],
@@ -315,7 +422,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: _isLoading
                           ? null
                           : () {
-                              Navigator.of(context).pushNamed('/signup');
+                              Navigator.of(context).pop();
                             },
                       style: TextButton.styleFrom(
                         padding: EdgeInsets.zero,
@@ -323,7 +430,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       child: Text(
-                        'Sign Up',
+                        'Sign In',
                         style: TextStyle(
                           fontSize: 14,
                           color: AppColors.darkGreen,
@@ -333,6 +440,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
+                
+                const SizedBox(height: 40),
               ],
             ),
           ),
@@ -375,7 +484,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// Custom painter for logo (heart, cross, stars)
+// Custom painter for logo (heart, cross, stars) - same as login screen
 class LogoPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -486,3 +595,4 @@ class LogoPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+

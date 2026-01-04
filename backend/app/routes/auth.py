@@ -4,7 +4,7 @@ Authentication routes - Using Firestore
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
 from typing import Optional
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
@@ -23,8 +23,16 @@ class UserRegister(BaseModel):
     phone_number: Optional[str] = None
 
 class UserLogin(BaseModel):
-    username: str
+    username: Optional[str] = None  # Can be username
+    email: Optional[str] = None  # Allow email login
     password: str
+    
+    @model_validator(mode='after')
+    def validate_username_or_email(self):
+        """Ensure either username or email is provided"""
+        if not self.username and not self.email:
+            raise ValueError("Either username or email must be provided")
+        return self
 
 class Token(BaseModel):
     access_token: str
@@ -130,18 +138,65 @@ async def register(user_data: UserRegister):
 
 @router.post("/login", response_model=Token)
 async def login(user_data: UserLogin):
-    """Login user from Firestore"""
-    user = firestore_service.get_user_by_username(user_data.username)
-    if not user or not verify_password(user_data.password, user.get('hashed_password', '')):
+    """Login user from Firestore - supports both username and email"""
+    # Debug logging
+    print(f"[DEBUG] Login attempt - username: {user_data.username}, email: {user_data.email}")
+    
+    # Try to find user by username or email
+    # If username contains @, treat it as email (handles cases where frontend sends email as username)
+    user = None
+    login_identifier = None
+    
+    # Check if username is actually an email (contains @)
+    if user_data.username and '@' in user_data.username:
+        # Username field contains email, look it up as email
+        user = firestore_service.get_user_by_email(user_data.username)
+        login_identifier = user_data.username
+        print(f"[DEBUG] Username field contains email, looking up by email: {user_data.username}, found: {user is not None}")
+    elif user_data.email:
+        # Email field is set, use it
+        user = firestore_service.get_user_by_email(user_data.email)
+        login_identifier = user_data.email
+        print(f"[DEBUG] Looking up by email: {user_data.email}, found: {user is not None}")
+    elif user_data.username:
+        # Username field is set and doesn't contain @, use as username
+        user = firestore_service.get_user_by_username(user_data.username)
+        login_identifier = user_data.username
+        print(f"[DEBUG] Looking up by username: {user_data.username}, found: {user is not None}")
+    
+    # Check if user exists
+    if not user:
+        print(f"[DEBUG] User not found for identifier: {login_identifier}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+            detail="Incorrect username/email or password",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Verify password
+    stored_hash = user.get('hashed_password', '')
+    password_valid = verify_password(user_data.password, stored_hash)
+    print(f"[DEBUG] Password verification result: {password_valid}")
+    
+    if not password_valid:
+        print(f"[DEBUG] Password verification failed for user: {user.get('username')}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username/email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Use the username from the user document for the token (not the login identifier)
+    username_for_token = user.get('username')
+    if not username_for_token:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="User data error: username not found"
         )
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user_data.username}, expires_delta=access_token_expires
+        data={"sub": username_for_token}, expires_delta=access_token_expires
     )
     
     return {"access_token": access_token, "token_type": "bearer"}

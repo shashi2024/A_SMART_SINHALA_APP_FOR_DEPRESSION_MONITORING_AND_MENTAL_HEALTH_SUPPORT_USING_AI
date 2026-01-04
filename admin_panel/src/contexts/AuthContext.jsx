@@ -30,11 +30,30 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem('token');
     if (token) {
       api.setToken(token);
-      setIsAuthenticated(true);
-      // Check if user is admin
-      checkAdminStatus();
+      // Verify token is still valid and user is admin
+      checkAdminStatus()
+        .then((isAdmin) => {
+          if (isAdmin) {
+            setIsAuthenticated(true);
+          } else {
+            // Token exists but user is not admin or token is invalid
+            localStorage.removeItem('token');
+            api.setToken(null);
+            setIsAuthenticated(false);
+          }
+        })
+        .catch(() => {
+          // Token validation failed
+          localStorage.removeItem('token');
+          api.setToken(null);
+          setIsAuthenticated(false);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    } else {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   const login = async (username, password) => {
@@ -59,6 +78,7 @@ export function AuthProvider({ children }) {
   const value = {
     isAuthenticated,
     isAdmin,
+    loading,
     login,
     logout,
   };
