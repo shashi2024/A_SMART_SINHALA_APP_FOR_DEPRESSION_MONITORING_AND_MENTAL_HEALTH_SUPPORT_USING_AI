@@ -117,7 +117,7 @@ function Alerts() {
         </Tabs>
       </Box>
 
-      {/* Alerts Table */}
+      {/* Alerts Table1 */}
       <TableContainer
         component={Paper}
         sx={{
