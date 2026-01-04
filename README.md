@@ -704,8 +704,8 @@ black .
 - Visual design and styling
 - Real-time sensor data processing
 
-#### **Social Media Analysis & Admin Panel** (IT22169808 - Srimali K.H.J)
-- Social media-based depression detection
+#### **AI-Driven Twitter Analysis for Depression Detection & Admin Panel** (IT22169808 - Srimali K.H.J)
+- Twitter-based depression detection
 - Text mining and sentiment analysis
 - Admin panel design and development
 - Data visualization and dashboards
