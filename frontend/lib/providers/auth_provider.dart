@@ -118,9 +118,9 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> register(String username, String email, String password) async {
+  Future<bool> register(String username, String email, String password, [String? phoneNumber]) async {
     try {
-      final response = await _apiService.register(username, email, password);
+      final response = await _apiService.register(username, email, password, phoneNumber);
       _token = response['access_token'];
       _apiService.setToken(_token!);
       

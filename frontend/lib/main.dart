@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/signup_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/voice_call_screen.dart';
 import 'screens/profile_screen.dart';
@@ -46,6 +47,7 @@ class MyApp extends StatelessWidget {
         home: const AuthWrapper(),
         routes: {
           '/login': (context) => const LoginScreen(),
+          '/signup': (context) => const SignUpScreen(),
           '/home': (context) => const HomeScreen(),
           '/chat': (context) => const ChatScreen(),
           '/voice': (context) => const VoiceCallScreen(),
