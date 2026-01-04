@@ -8,7 +8,6 @@
 
 An AI-powered mental health support application with multi-language support (Sinhala, Tamil, English) that monitors depression through voice analysis, typing patterns, and chatbot interactions.
 
----
 
 ## 📋 Table of Contents
 
@@ -176,6 +175,7 @@ npm install
 
 ---
 
+<<<<<<< HEAD
 ## ⚙️ Configuration
 
 ### Backend Configuration
@@ -215,6 +215,9 @@ static const String baseUrl = 'http://localhost:8000';
 static const String baseUrl = 'http://192.168.1.100:8000';
 ```
 
+To find your IP address:
+- **Windows**: Run `ipconfig` in PowerShell
+- **Linux/Mac**: Run `ifconfig` or `ip addr`
 
 ### Firebase Mobile Configuration
 
@@ -301,7 +304,8 @@ Admin panel will be available at: `http://localhost:5173`
 4. **Run the app**:
    ```bash
    cd frontend
-   flutter run
+   flutter pub get
+   flutter run -d <device ID> 
    ```
 
 ---
