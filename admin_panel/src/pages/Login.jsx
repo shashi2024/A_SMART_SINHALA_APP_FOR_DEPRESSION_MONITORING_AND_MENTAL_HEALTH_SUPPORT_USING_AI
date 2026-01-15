@@ -46,8 +46,8 @@ function Login() {
       await login(username, password);
       navigate('/dashboard');
     } catch (err) {
-      if (err.message && err.message.includes('Admin privileges')) {
-        setError('Access denied: Admin privileges required');
+      if (err.message && (err.message.includes('Admin privileges') || err.message.includes('sub-admin'))) {
+        setError('Access denied: Admin or sub-admin privileges required');
       } else {
         setError('Invalid credentials. Please check your username and password.');
       }
