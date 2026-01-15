@@ -1,0 +1,271 @@
+================================================================================
+APP FLOW - FIRST TIME VS RETURNING USERS
+================================================================================
+
+OVERVIEW
+--------
+The app has two different flows:
+1. FIRST-TIME USERS: See chatbot first, then login prompt
+2. RETURNING USERS: Login first, then access chat from home
+
+================================================================================
+FIRST-TIME USER FLOW
+================================================================================
+
+STEP 1: APP LAUNCH
+------------------
+- User opens app for the first time
+- System checks SharedPreferences for 'has_seen_welcome' flag
+- Flag is false (first time)
+- App shows: WelcomeChatScreen (chatbot interface)
+
+STEP 2: CHATBOT INTERACTION
+----------------------------
+- User can immediately start chatting with Sahana
+- No login required for initial interaction
+- Chat works normally (typing analysis, sensor data, etc.)
+- After 3-5 messages, a login prompt banner appears
+
+STEP 3: LOGIN PROMPT BANNER
+----------------------------
+The banner shows:
+- "Continue your conversation"
+- Explanation: "Login or sign up to save your chat history..."
+- "Login to Continue" button
+- "Don't have an account? Sign up" link
+
+STEP 4: USER CLICKS LOGIN
+--------------------------
+- User clicks "Login to Continue" button
+- OR clicks "Sign up" link
+- Navigates to LoginScreen or SignUpScreen
+- After successful login/signup:
+  * 'has_seen_welcome' flag is set to true
+  * User is authenticated
+  * Navigates to HomeScreen
+
+STEP 5: AFTER LOGIN
+-------------------
+- User is now on HomeScreen
+- Can access chat via:
+  * "Check in" button on the "I'm Sahana" card
+  * Chatbot icon in bottom navigation bar
+- Chat history is saved (if backend supports it)
+
+================================================================================
+RETURNING USER FLOW
+================================================================================
+
+STEP 1: APP LAUNCH
+------------------
+- User opens app (not first time)
+- System checks SharedPreferences for 'has_seen_welcome' flag
+- Flag is true (user has seen welcome before)
+- System checks authentication status
+
+STEP 2A: NOT AUTHENTICATED
+---------------------------
+- User is not logged in
+- App shows: LoginScreen
+- User must login first
+- After login: Navigates to HomeScreen
+
+STEP 2B: AUTHENTICATED
+----------------------
+- User is already logged in (token exists)
+- App shows: HomeScreen directly
+- User can immediately access all features
+
+STEP 3: ACCESSING CHAT
+----------------------
+From HomeScreen, user can access chat via:
+1. "Check in" button on "I'm Sahana" card
+2. Chatbot icon in bottom navigation (center icon)
+
+Both methods navigate to ChatScreen where user can:
+- Continue previous conversations
+- Start new conversations
+- Access call feature (phone icon in header)
+
+================================================================================
+TECHNICAL IMPLEMENTATION
+================================================================================
+
+AUTH WRAPPER (main.dart)
+------------------------
+The AuthWrapper widget determines which screen to show:
+
+1. Check if first-time user:
+   - Reads 'has_seen_welcome' from SharedPreferences
+   - If false: Show WelcomeChatScreen
+   - If true: Continue to auth check
+
+2. Check authentication:
+   - If not authenticated: Show LoginScreen
+   - If authenticated: Show HomeScreen
+
+WELCOME CHAT SCREEN
+-------------------
+- Allows anonymous chat (no auth required)
+- Shows login prompt after 3-5 messages
+- Tracks message count
+- Provides login/signup navigation
+- Sets 'has_seen_welcome' flag when user navigates to login
+
+LOGIN/REGISTRATION
+------------------
+- Both screens set 'has_seen_welcome' to true on success
+- This ensures user won't see welcome screen again
+- After login: Navigate to HomeScreen
+
+HOME SCREEN
+-----------
+- Main screen for authenticated users
+- Contains:
+  * Mood selection
+  * "I'm Sahana" card with "Check in" button
+  * "Feeling Lonely?" card
+  * Bottom navigation with chat access
+
+CHAT SCREEN
+-----------
+- Full chat interface for authenticated users
+- Back button returns to home
+- Phone icon for voice calls
+- Full typing analysis and sensor integration
+
+================================================================================
+USER JOURNEY EXAMPLES
+================================================================================
+
+EXAMPLE 1: FIRST-TIME USER
+---------------------------
+1. Opens app → Sees WelcomeChatScreen
+2. Starts chatting: "Hello, I'm feeling sad"
+3. Sahana responds
+4. User sends 2 more messages
+5. Login prompt banner appears
+6. User clicks "Login to Continue"
+7. Enters credentials on LoginScreen
+8. After login → HomeScreen
+9. Clicks "Check in" → ChatScreen
+10. Continues conversation
+
+EXAMPLE 2: RETURNING USER (LOGGED OUT)
+---------------------------------------
+1. Opens app → Sees LoginScreen (not first time)
+2. Enters credentials
+3. After login → HomeScreen
+4. Clicks chatbot icon → ChatScreen
+5. Continues previous conversation
+
+EXAMPLE 3: RETURNING USER (LOGGED IN)
+--------------------------------------
+1. Opens app → Sees HomeScreen directly (token exists)
+2. Clicks "Check in" → ChatScreen
+3. Continues conversation immediately
+
+================================================================================
+KEY FEATURES
+================================================================================
+
+1. FIRST-TIME EXPERIENCE
+   - No barriers to entry
+   - Immediate chatbot access
+   - Natural conversation flow
+   - Login prompt appears contextually
+
+2. RETURNING USER EXPERIENCE
+   - Quick access after login
+   - Persistent authentication
+   - Seamless navigation
+   - Chat history available
+
+3. SMOOTH TRANSITIONS
+   - Welcome → Login → Home → Chat
+   - No jarring screen changes
+   - Contextual prompts
+   - Clear navigation paths
+
+================================================================================
+STORAGE & STATE
+================================================================================
+
+SHARED PREFERENCES:
+------------------
+- 'has_seen_welcome': Boolean flag
+  * false = first-time user (show welcome)
+  * true = returning user (skip welcome)
+
+- 'auth_token': Authentication token
+  * null = not authenticated (show login)
+  * exists = authenticated (show home)
+
+AUTH PROVIDER:
+--------------
+- Manages user authentication state
+- Stores user information
+- Handles login/logout
+- Syncs token to other providers
+
+CHATBOT PROVIDER:
+----------------
+- Manages chat state
+- Stores messages
+- Handles API communication
+- Works with or without auth token
+
+================================================================================
+NAVIGATION ROUTES
+================================================================================
+
+/ (root)
+  -> AuthWrapper
+    -> WelcomeChatScreen (first-time, not authenticated)
+    -> LoginScreen (returning, not authenticated)
+    -> HomeScreen (authenticated)
+
+/login
+  -> LoginScreen
+
+/signup
+  -> SignUpScreen
+
+/home
+  -> HomeScreen
+
+/chat
+  -> ChatScreen
+
+/welcome
+  -> WelcomeChatScreen
+
+================================================================================
+SUMMARY
+================================================================================
+
+FIRST-TIME USER:
+1. App opens → WelcomeChatScreen (chatbot)
+2. User chats (3-5 messages)
+3. Login prompt appears
+4. User clicks login → LoginScreen
+5. After login → HomeScreen
+6. User clicks chat → ChatScreen
+
+RETURNING USER:
+1. App opens → LoginScreen (if not logged in)
+   OR
+   App opens → HomeScreen (if logged in)
+2. User logs in (if needed)
+3. User clicks chat → ChatScreen
+
+This flow ensures:
+- First-time users can try the chatbot immediately
+- Returning users have quick access after login
+- Smooth user experience with clear navigation
+- Contextual prompts at the right time
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
+
