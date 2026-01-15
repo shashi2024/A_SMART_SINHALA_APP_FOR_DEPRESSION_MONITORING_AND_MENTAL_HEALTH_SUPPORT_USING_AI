@@ -1,6 +1,7 @@
 """
 Fake call bot detection service for detecting synthetic/automated voices in calls
 This service detects when users are using call bots or synthetic voice systems
+Integrates custom PyTorch model and algorithm for enhanced detection
 """
 
 import numpy as np
@@ -9,6 +10,8 @@ from typing import Dict, Any, List, Optional
 import os
 from scipy import stats
 from scipy.signal import find_peaks
+import torch
+from app.services.algorithm import FakeCallAlgorithm
 
 class CallBotDetectionService:
     """Service for detecting fake call bots and synthetic voices"""
@@ -24,19 +27,191 @@ class CallBotDetectionService:
         # Combined fake detection threshold
         self.fake_confidence_threshold = 0.65
         
+        # Load custom PyTorch model
+        self.custom_model = None
+        self.model_loaded = False
+        self._load_custom_model()
+        
+        # Initialize algorithm
+        self.algorithm = FakeCallAlgorithm()
+    
+    def _load_custom_model(self):
+        """Load custom PyTorch fake call detector model"""
+        try:
+            # Try multiple possible paths
+            possible_paths = [
+                os.path.join("models", "fake_call_detector", "fakecall_model.pth"),  # From backend directory
+                os.path.join("..", "models", "fake_call_detector", "fakecall_model.pth"),  # From app/services
+                os.path.join("backend", "models", "fake_call_detector", "fakecall_model.pth"),  # From project root
+                os.path.join(".", "backend", "models", "fake_call_detector", "fakecall_model.pth"),  # Alternative
+            ]
+            
+            model_path = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    model_path = path
+                    break
+            
+            if model_path and os.path.exists(model_path):
+                try:
+                    # Load PyTorch model
+                    self.custom_model = torch.load(model_path, map_location='cpu')
+                    if hasattr(self.custom_model, 'eval'):
+                        self.custom_model.eval()  # Set to evaluation mode
+                    self.model_loaded = True
+                    print(f"[INFO] Loaded custom fake call detector model from {model_path}")
+                except Exception as e:
+                    print(f"[WARNING] Could not load PyTorch model: {e}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                print(f"[WARNING] Custom fake call detector model not found at {model_path}. Using rule-based detection only.")
+        
+        except Exception as e:
+            print(f"[ERROR] Error loading custom model: {e}")
+            import traceback
+            traceback.print_exc()
+            self.model_loaded = False
+    
+    def _prepare_features_for_model(self, features: Dict[str, Any]) -> torch.Tensor:
+        """
+        Prepare audio features in the format expected by the PyTorch model
+        Modify this based on your model's expected input format
+        """
+        # Extract feature vectors - adjust based on your model's input requirements
+        feature_vector = []
+        
+        # Pitch features
+        pitch_seq = features.get('pitch_sequence', np.array([0]))
+        if len(pitch_seq) > 0:
+            feature_vector.extend([
+                float(np.mean(pitch_seq)),
+                float(np.std(pitch_seq)),
+                float(np.min(pitch_seq)),
+                float(np.max(pitch_seq))
+            ])
+        else:
+            feature_vector.extend([0.0, 0.0, 0.0, 0.0])
+        
+        # Energy features
+        energy_seq = features.get('energy_sequence', np.array([0]))
+        if len(energy_seq) > 0:
+            feature_vector.extend([
+                float(np.mean(energy_seq)),
+                float(np.std(energy_seq))
+            ])
+        else:
+            feature_vector.extend([0.0, 0.0])
+        
+        # MFCC features (flatten and take statistics)
+        mfcc = features.get('mfcc_features', np.array([[0]]))
+        if mfcc.size > 0:
+            mfcc_flat = mfcc.flatten()
+            feature_vector.extend([
+                float(np.mean(mfcc_flat)),
+                float(np.std(mfcc_flat)),
+                float(np.min(mfcc_flat)),
+                float(np.max(mfcc_flat))
+            ])
+        else:
+            feature_vector.extend([0.0, 0.0, 0.0, 0.0])
+        
+        # Spectral features
+        spectral_centroids = features.get('spectral_centroids', np.array([0]))
+        spectral_rolloff = features.get('spectral_rolloff', np.array([0]))
+        spectral_bandwidth = features.get('spectral_bandwidth', np.array([0]))
+        
+        feature_vector.extend([
+            float(np.mean(spectral_centroids)),
+            float(np.std(spectral_centroids)),
+            float(np.mean(spectral_rolloff)),
+            float(np.std(spectral_rolloff)),
+            float(np.mean(spectral_bandwidth)),
+            float(np.std(spectral_bandwidth))
+        ])
+        
+        # ZCR features
+        zcr_seq = features.get('zcr_sequence', np.array([0]))
+        if len(zcr_seq) > 0:
+            feature_vector.extend([
+                float(np.mean(zcr_seq)),
+                float(np.std(zcr_seq))
+            ])
+        else:
+            feature_vector.extend([0.0, 0.0])
+        
+        # Duration
+        feature_vector.append(float(features.get('duration', 0)))
+        
+        # Convert to tensor
+        feature_tensor = torch.FloatTensor(feature_vector).unsqueeze(0)  # Add batch dimension
+        return feature_tensor
+    
+    def _predict_with_custom_model(self, features: Dict[str, Any]) -> Optional[float]:
+        """
+        Use custom PyTorch model to predict fake call probability
+        Returns probability (0-1) or None if model not available
+        """
+        if not self.model_loaded or self.custom_model is None:
+            return None
+        
+        try:
+            # Prepare features
+            feature_tensor = self._prepare_features_for_model(features)
+            
+            # Predict
+            with torch.no_grad():
+                prediction = self.custom_model(feature_tensor)
+                
+                # Handle different output formats
+                if isinstance(prediction, torch.Tensor):
+                    prediction = prediction.cpu().numpy()
+                
+                # Extract probability
+                if isinstance(prediction, np.ndarray):
+                    if prediction.shape[1] == 1:
+                        # Binary classification (fake probability)
+                        fake_prob = float(prediction[0][0])
+                    else:
+                        # Multi-class (e.g., [real_prob, fake_prob])
+                        fake_prob = float(prediction[0][1]) if prediction.shape[1] > 1 else float(prediction[0][0])
+                    
+                    # Apply sigmoid if needed (if model outputs logits)
+                    if fake_prob < 0 or fake_prob > 1:
+                        fake_prob = 1.0 / (1.0 + np.exp(-fake_prob))  # Sigmoid
+                    
+                    return float(np.clip(fake_prob, 0.0, 1.0))
+                else:
+                    return float(prediction) if isinstance(prediction, (int, float)) else None
+        
+        except Exception as e:
+            print(f"[ERROR] Error predicting with custom model: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+        
     async def detect_call_bot(
         self,
         audio_path: str,
         language: str = "sinhala",
-        voice_features: Optional[Dict[str, Any]] = None
+        voice_features: Optional[Dict[str, Any]] = None,
+        transcript: str = "",
+        call_duration_sec: float = 0.0,
+        repeat_call_count_last_hour: int = 0,
+        depression_score: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Detect if the call is using a bot or synthetic voice
+        Now integrates custom PyTorch model and algorithm
         
         Args:
             audio_path: Path to audio file
             language: Language of the call ('sinhala', 'tamil', 'english')
             voice_features: Pre-computed voice features (optional)
+            transcript: Text transcript from speech-to-text
+            call_duration_sec: Duration of the call in seconds
+            repeat_call_count_last_hour: Number of calls from same user in last hour
+            depression_score: Depression score from depression model (optional)
         
         Returns:
             Dictionary with detection results
@@ -57,67 +232,104 @@ class CallBotDetectionService:
             # Extract comprehensive features for bot detection
             features = await self._extract_bot_detection_features(y, sr, language)
             
-            # Analyze each feature for bot indicators
-            pitch_analysis = self._analyze_pitch_consistency(features['pitch_sequence'])
-            energy_analysis = self._analyze_energy_patterns(features['energy_sequence'])
-            mfcc_analysis = self._analyze_mfcc_anomalies(features['mfcc_features'])
-            spectral_analysis = self._analyze_spectral_characteristics(features)
-            zcr_analysis = self._analyze_zero_crossing_rate(features['zcr_sequence'])
-            formant_analysis = self._analyze_formant_patterns(features['formants'])
+            # Try to use custom PyTorch model first
+            p_fake_model = self._predict_with_custom_model(features)
             
-            # Combine all indicators
-            bot_indicators = {
-                'pitch_consistency': pitch_analysis['bot_score'],
-                'energy_flatness': energy_analysis['bot_score'],
-                'mfcc_anomalies': mfcc_analysis['bot_score'],
-                'spectral_anomalies': spectral_analysis['bot_score'],
-                'zcr_anomalies': zcr_analysis['bot_score'],
-                'formant_irregularities': formant_analysis['bot_score']
-            }
+            # If model not available, use rule-based detection
+            if p_fake_model is None:
+                # Fallback to rule-based detection
+                pitch_analysis = self._analyze_pitch_consistency(features['pitch_sequence'])
+                energy_analysis = self._analyze_energy_patterns(features['energy_sequence'])
+                mfcc_analysis = self._analyze_mfcc_anomalies(features['mfcc_features'])
+                spectral_analysis = self._analyze_spectral_characteristics(features)
+                zcr_analysis = self._analyze_zero_crossing_rate(features['zcr_sequence'])
+                formant_analysis = self._analyze_formant_patterns(features['formants'])
+                
+                bot_indicators = {
+                    'pitch_consistency': pitch_analysis['bot_score'],
+                    'energy_flatness': energy_analysis['bot_score'],
+                    'mfcc_anomalies': mfcc_analysis['bot_score'],
+                    'spectral_anomalies': spectral_analysis['bot_score'],
+                    'zcr_anomalies': zcr_analysis['bot_score'],
+                    'formant_irregularities': formant_analysis['bot_score']
+                }
+                
+                # Calculate overall fake confidence score
+                p_fake_model = (
+                    bot_indicators['pitch_consistency'] * 0.20 +
+                    bot_indicators['energy_flatness'] * 0.15 +
+                    bot_indicators['mfcc_anomalies'] * 0.25 +
+                    bot_indicators['spectral_anomalies'] * 0.15 +
+                    bot_indicators['zcr_anomalies'] * 0.10 +
+                    bot_indicators['formant_irregularities'] * 0.15
+                )
             
-            # Calculate overall fake confidence score
-            # Weighted combination of all indicators
-            fake_confidence = (
-                bot_indicators['pitch_consistency'] * 0.20 +
-                bot_indicators['energy_flatness'] * 0.15 +
-                bot_indicators['mfcc_anomalies'] * 0.25 +
-                bot_indicators['spectral_anomalies'] * 0.15 +
-                bot_indicators['zcr_anomalies'] * 0.10 +
-                bot_indicators['formant_irregularities'] * 0.15
+            # Use algorithm to combine model prediction with text and behavior features
+            algorithm_result = self.algorithm.analyze_call(
+                transcript=transcript,
+                p_fake_model=p_fake_model,
+                call_duration_sec=call_duration_sec,
+                repeat_call_count_last_hour=repeat_call_count_last_hour,
+                depression_score=depression_score
             )
             
-            is_fake = fake_confidence >= self.fake_confidence_threshold
+            # Get final fake score from algorithm
+            final_fake_score = algorithm_result.fake_score
+            is_fake = final_fake_score >= 0.4  # Use algorithm's threshold
             
             # Determine bot type if fake
             bot_type = None
             if is_fake:
-                bot_type = self._classify_bot_type(bot_indicators, features)
+                if final_fake_score >= 0.7:
+                    bot_type = "high_risk_fake"
+                elif final_fake_score >= 0.4:
+                    bot_type = "medium_risk_fake"
+                else:
+                    bot_type = "low_risk_fake"
+            
+            # Format result dictionary
+            result_dict = self.algorithm.format_result_dict(algorithm_result)
             
             return {
                 "is_fake": is_fake,
-                "is_call_bot": is_fake,  # Alias for clarity
-                "confidence": float(fake_confidence),
+                "is_call_bot": is_fake,
+                "confidence": float(final_fake_score),
                 "bot_type": bot_type,
-                "indicators": bot_indicators,
-                "detailed_analysis": {
-                    "pitch": pitch_analysis,
-                    "energy": energy_analysis,
-                    "mfcc": mfcc_analysis,
-                    "spectral": spectral_analysis,
-                    "zcr": zcr_analysis,
-                    "formant": formant_analysis
+                "risk_label": algorithm_result.risk_label,
+                "action": algorithm_result.action,
+                "suspicious_words": algorithm_result.suspicious_words,
+                "word_contributions": algorithm_result.word_contributions,
+                "model_used": "custom_pytorch" if self.model_loaded else "rule_based",
+                "base_model_score": float(p_fake_model),
+                "algorithm_enhanced_score": float(final_fake_score),
+                "language": language,
+                "text_features": {
+                    "token_count": algorithm_result.text_features.token_count,
+                    "nonsense_ratio": algorithm_result.text_features.nonsense_ratio,
+                    "unique_word_ratio": algorithm_result.text_features.unique_word_ratio,
+                    "joke_word_count": algorithm_result.text_features.joke_word_count,
+                    "abuse_word_count": algorithm_result.text_features.abuse_word_count,
                 },
-                "language": language
+                "behavior_features": {
+                    "call_duration_sec": algorithm_result.behavior_features.call_duration_sec,
+                    "repeat_call_count_last_hour": algorithm_result.behavior_features.repeat_call_count_last_hour,
+                }
             }
         
         except Exception as e:
             # Return safe default on error
+            print(f"[ERROR] Error in detect_call_bot: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 "is_fake": False,
                 "is_call_bot": False,
                 "confidence": 0.0,
                 "bot_type": None,
-                "indicators": {},
+                "risk_label": "low_fake_risk",
+                "action": "treat_as_normal",
+                "suspicious_words": [],
+                "word_contributions": {},
                 "error": str(e),
                 "language": language
             }

@@ -84,7 +84,7 @@ class PHQ9Service:
         self.total_questions = 9
     
     def get_question(self, question_num: int, language: str = 'en') -> str:
-        """Get PHQ-9 question in specified language"""
+        """Get PHQ-9 question in specified language with answer options"""
         if question_num < 1 or question_num > 9:
             raise ValueError("Question number must be between 1 and 9")
         
@@ -92,7 +92,13 @@ class PHQ9Service:
         if lang not in self.QUESTIONS:
             lang = 'en'  # Default to English
         
-        return self.QUESTIONS[lang].get(question_num, "")
+        question = self.QUESTIONS[lang].get(question_num, "")
+        options = self.get_answer_options(lang)
+        
+        # Format question with answer options
+        options_text = "\n".join([f"{num}. {text}" for num, text in options.items()])
+        
+        return f"{question}\n\nPlease answer with a number (0-3) or the exact text:\n{options_text}"
     
     def get_answer_options(self, language: str = 'en') -> Dict[int, str]:
         """Get answer options in specified language"""
@@ -107,24 +113,40 @@ class PHQ9Service:
         Parse user answer to PHQ-9 score (0-3)
         Handles both numeric and text responses
         """
-        answer = answer.strip().lower()
+        if not answer:
+            return None
+            
+        answer_clean = answer.strip().lower()
         
-        # Direct numeric answers
-        if answer.isdigit():
-            score = int(answer)
+        # Direct numeric answers (0, 1, 2, 3)
+        if answer_clean.isdigit():
+            score = int(answer_clean)
             if 0 <= score <= 3:
                 return score
         
-        # Text-based answers (English)
+        # Extract first number from answer if it contains a number
+        import re
+        numbers = re.findall(r'\d+', answer_clean)
+        if numbers:
+            score = int(numbers[0])
+            if 0 <= score <= 3:
+                return score
+        
+        # Exact text matches (English) - must match exactly or be contained
         text_to_score = {
-            'not at all': 0, 'never': 0, 'none': 0, 'no': 0,
-            'several days': 1, 'some days': 1, 'sometimes': 1, 'few': 1,
-            'more than half': 2, 'half': 2, 'often': 2, 'frequently': 2,
-            'nearly every day': 3, 'every day': 3, 'daily': 3, 'always': 3, 'most days': 3
+            # Score 0
+            'not at all': 0, 'never': 0, 'none': 0, 
+            # Score 1
+            'several days': 1, 'some days': 1, 'sometimes': 1, 'few days': 1,
+            # Score 2
+            'more than half the days': 2, 'more than half': 2, 'half the days': 2, 'often': 2,
+            # Score 3
+            'nearly every day': 3, 'every day': 3, 'daily': 3, 'most days': 3, 'always': 3
         }
         
+        # Check for exact or partial matches
         for key, value in text_to_score.items():
-            if key in answer:
+            if key in answer_clean:
                 return value
         
         # Sinhala text answers
@@ -136,7 +158,7 @@ class PHQ9Service:
         }
         
         for key, value in si_to_score.items():
-            if key in answer:
+            if key in answer_clean:
                 return value
         
         # Tamil text answers
@@ -148,7 +170,7 @@ class PHQ9Service:
         }
         
         for key, value in ta_to_score.items():
-            if key in answer:
+            if key in answer_clean:
                 return value
         
         return None  # Could not parse
@@ -227,6 +249,8 @@ class PHQ9Service:
         options_text = "\n".join([f"{num}. {text}" for num, text in options.items()])
         
         return f"{question}\n\n{options_text}"
+
+
 
 
 
