@@ -33,7 +33,7 @@ An AI-powered mental health support application with multi-language support (Sin
 - **💬 AI Chatbot** - Conversational support in Sinhala, Tamil, and English
 - **⌨️ Typing Pattern Analysis** - Keystroke dynamics for mental health assessment
 - **📱 Biofeedback System** - Depression detection using mobile sensor data (accelerometer, gyroscope, etc.)
-- **📱 Twitter Sentiment Analysis – Detecting depression through sentiment and behavioral pattern analysis of Twitter posts.
+- **📱 Twitter Sentiment Analysis** – Detecting depression through sentiment and behavioral pattern analysis of Twitter posts.
 - **🌐 Multi-language Support** - Sinhala (සිංහල), Tamil (தமிழ்), and English
 - **📊 Admin Dashboard** - Comprehensive monitoring and alert system
 - **🔐 Secure Authentication** - JWT-based authentication with Firebase

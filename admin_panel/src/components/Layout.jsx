@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
@@ -23,7 +23,6 @@ import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import SearchIcon from '@mui/icons-material/Search';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import FolderIcon from '@mui/icons-material/Folder';
 import { useAuth } from '../contexts/AuthContext';
@@ -43,15 +42,24 @@ const colors = {
 function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, user, checkAdminStatus } = useAuth();
+  
+  // Fetch user info on mount
+  useEffect(() => {
+    if (!user) {
+      checkAdminStatus();
+    }
+  }, []);
+  
+  const displayName = user?.username || user?.email?.split('@')[0] || 'Admin';
 
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Patients Risk Level', icon: <BarChartIcon />, path: '/patients-risk' },
     { text: 'Alerts Management', icon: <CalendarTodayIcon />, path: '/alerts' },
-    { text: 'connect', icon: <ShoppingBagIcon />, path: '/connect' },
-    { text: 'location track', icon: <TimelineIcon />, path: '/location-track' },
-    { text: 'digital twin', icon: <ChatBubbleIcon />, path: '/digital-twin' },
+    { text: 'Doctor Connect', icon: <ShoppingBagIcon />, path: '/connect' },
+    { text: 'Location track', icon: <TimelineIcon />, path: '/location-track' },
+    { text: 'Digital twin', icon: <ChatBubbleIcon />, path: '/digital-twin' },
     { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
   ];
 
@@ -260,7 +268,7 @@ function Layout() {
                 variant="body1"
                 sx={{ fontWeight: 600, color: '#333', fontSize: '16px' }}
               >
-                Welcome, Dr. Stephen
+                Welcome, {displayName}
               </Typography>
               <Typography
                 variant="body2"
@@ -270,14 +278,19 @@ function Layout() {
               </Typography>
             </Box>
 
-            {/* Icons */}
-            <IconButton sx={{ color: '#666' }}>
-              <HelpOutlineIcon />
-            </IconButton>
-            <IconButton sx={{ color: '#666' }}>
+            {/* Top Navigation Icons */}
+            <IconButton
+              sx={{ color: '#666' }}
+              onClick={() => navigate('/notifications')}
+              title="Notifications"
+            >
               <NotificationsNoneIcon />
             </IconButton>
-            <IconButton sx={{ color: '#666' }}>
+            <IconButton
+              sx={{ color: '#666' }}
+              onClick={() => navigate('/reports')}
+              title="Reports"
+            >
               <FolderIcon />
             </IconButton>
 
@@ -295,6 +308,7 @@ function Layout() {
                   bgcolor: '#F5F5F5',
                 },
               }}
+              onClick={() => navigate('/admin-profile')}
             >
               <Avatar
                 sx={{
@@ -303,20 +317,20 @@ function Layout() {
                   bgcolor: colors.darkGreen,
                 }}
               >
-                F
+                {displayName.charAt(0).toUpperCase()}
               </Avatar>
               <Box>
                 <Typography
                   variant="body2"
                   sx={{ fontWeight: 600, color: '#333', fontSize: '14px' }}
                 >
-                  Frank
+                  {displayName}
                 </Typography>
                 <Typography
                   variant="caption"
                   sx={{ color: '#999', fontSize: '12px' }}
                 >
-                  Cardiologist
+                  {user?.is_admin ? 'Administrator' : 'User'}
                 </Typography>
               </Box>
               <Typography sx={{ color: '#999', ml: 0.5 }}>▼</Typography>
@@ -325,7 +339,7 @@ function Layout() {
         </Box>
 
         {/* Page Content */}
-        <Box sx={{ p: 4 }}>
+        <Box sx={{ p: 0 }}>
           <Outlet />
         </Box>
       </Box>

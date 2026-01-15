@@ -62,6 +62,22 @@ class ChatbotProvider with ChangeNotifier {
     }
   }
 
+  // Auto-detect language from message text
+  String _detectLanguage(String text) {
+    // Check for Sinhala characters (Unicode range: U+0D80 to U+0DFF)
+    final sinhalaRegex = RegExp(r'[\u0D80-\u0DFF]');
+    // Check for Tamil characters (Unicode range: U+0B80 to U+0BFF)
+    final tamilRegex = RegExp(r'[\u0B80-\u0BFF]');
+    
+    if (sinhalaRegex.hasMatch(text)) {
+      return 'si';
+    } else if (tamilRegex.hasMatch(text)) {
+      return 'ta';
+    } else {
+      return 'en';
+    }
+  }
+
   Future<void> sendMessage(
     String message, {
     Map<String, dynamic>? typingData,
@@ -76,11 +92,31 @@ class ChatbotProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // Auto-detect language from message, but allow manual override
+      final detectedLanguage = _detectLanguage(message);
+      // Use detected language if user hasn't explicitly set one, or if detected differs
+      final languageToUse = (_selectedLanguage == 'en' && detectedLanguage != 'en') 
+          ? detectedLanguage 
+          : _selectedLanguage;
+      
+      // Update selected language if auto-detected
+      if (detectedLanguage != 'en' && _selectedLanguage == 'en') {
+        _selectedLanguage = detectedLanguage;
+        notifyListeners();
+        // Save preference
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('chatbot_language', detectedLanguage);
+        } catch (e) {
+          // Ignore storage errors
+        }
+      }
+      
       // Send to API
       final response = await _apiService.sendChatMessage(
         message,
         sessionId: _currentSessionId,
-        language: _selectedLanguage,
+        language: languageToUse,
         typingData: typingData,
         sensorData: sensorData,
       );

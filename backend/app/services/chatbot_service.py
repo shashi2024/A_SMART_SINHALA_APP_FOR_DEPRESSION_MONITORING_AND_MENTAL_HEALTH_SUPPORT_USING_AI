@@ -15,9 +15,9 @@ class ChatbotService:
     # Intent patterns for detecting user intent
     INTENT_PATTERNS = {
         'start_phq9': {
-            'en': [r'phq', r'questionnaire', r'assessment', r'screening', r'test', r'evaluate'],
-            'si': [r'ප්‍රශ්නාවලිය', r'ඇගයීම', r'පරීක්ෂණය'],
-            'ta': [r'கேள்வி', r'மதிப்பீடு', r'சோதனை']
+            'en': [r'phq', r'questionnaire', r'assessment', r'screening', r'test', r'evaluate', r'take.*test', r'want.*test', r'like.*test', r'start.*test', r'begin.*test', r'do.*assessment', r'want.*assessment', r'like.*assessment', r'start.*assessment', r'begin.*assessment', r'mental.*health.*test', r'mental.*health.*assessment'],
+            'si': [r'ප්‍රශ්නාවලිය', r'ඇගයීම', r'පරීක්ෂණය', r'පරීක්ෂණය.*කරන්න', r'ඇගයීම.*කරන්න', r'ප්‍රශ්නාවලිය.*කරන්න'],
+            'ta': [r'கேள்வி', r'மதிப்பீடு', r'சோதனை', r'சோதனை.*செய்', r'மதிப்பீடு.*செய்', r'கேள்வி.*செய்']
         },
         'want_to_chat': {
             'en': [r'chat', r'talk', r'conversation', r'speak', r'discuss'],
@@ -30,9 +30,9 @@ class ChatbotService:
             'ta': [r'வணக்கம்', r'வணக்க', r'எப்படி']
         },
         'feeling_sad': {
-            'en': [r'sad', r'depressed', r'down', r'hopeless', r'unhappy', r'miserable'],
-            'si': [r'දුක්බර', r'කම්පනය', r'නිරාශාව', r'කනගාටුව'],
-            'ta': [r'வருத்தம்', r'மனச்சோர்வு', r'விரக்தி', r'சோகம்']
+            'en': [r'sad', r'depressed', r'down', r'hopeless', r'unhappy', r'miserable', r'tired', r'exhausted', r'weary', r'fatigued'],
+            'si': [r'දුක්බර', r'කම්පනය', r'නිරාශාව', r'කනගාටුව', r'මහන්සියි', r'මහන්සි', r'කම්පන', r'අවස්ථාව', r'අසීමිත'],
+            'ta': [r'வருத்தம்', r'மனச்சோர்வு', r'விரக்தி', r'சோகம்', r'சோர்வு', r'களைப்பு']
         },
         'feeling_anxious': {
             'en': [r'anxious', r'worried', r'nervous', r'stressed', r'panic'],
@@ -48,6 +48,23 @@ class ChatbotService:
     
     # Response templates by intent and language
     RESPONSE_TEMPLATES = {
+        'start_phq9': {
+            'en': [
+                "I'd be happy to help you with a mental health assessment. Let's start with the PHQ-9 questionnaire.",
+                "Great! Let's begin the PHQ-9 assessment. This will help us understand how you've been feeling.",
+                "I'll guide you through the PHQ-9 questionnaire. This assessment will help evaluate your mental health."
+            ],
+            'si': [
+                "මානසික සෞඛ්‍ය ඇගයීමකින් ඔබට උදව් කිරීමට මම සතුටු වෙමි. PHQ-9 ප්‍රශ්නාවලියෙන් ආරම්භ කරමු.",
+                "හොඳයි! PHQ-9 ඇගයීම ආරම්භ කරමු. මෙය ඔබ හැඟෙන ආකාරය අවබෝධ කර ගැනීමට උදව් වේ.",
+                "මම ඔබව PHQ-9 ප්‍රශ්නාවලිය හරහා මඟ පෙන්වන්නෙමි. මෙම ඇගයීම ඔබේ මානසික සෞඛ්‍යය තක්සේරු කිරීමට උදව් වේ."
+            ],
+            'ta': [
+                "மனநல மதிப்பீட்டில் உங்களுக்கு உதவ நான் மகிழ்ச்சியடைகிறேன். PHQ-9 கேள்வித்தாளுடன் தொடங்குவோம்.",
+                "நல்லது! PHQ-9 மதிப்பீட்டைத் தொடங்குவோம். இது நீங்கள் எப்படி உணர்கிறீர்கள் என்பதைப் புரிந்துகொள்ள உதவும்.",
+                "நான் உங்களை PHQ-9 கேள்வித்தாள் வழியாக வழிநடத்துவேன். இந்த மதிப்பீடு உங்கள் மனநலத்தை மதிப்பிட உதவும்."
+            ]
+        },
         'greeting': {
             'en': [
                 "Hello! I'm here to support you. Would you like to take a quick mental health assessment (PHQ-9), or would you prefer to chat freely?",
@@ -200,7 +217,7 @@ class ChatbotService:
     async def get_response(
         self, 
         message: str, 
-        user_id: str,
+        user_id: Optional[str] = None,
         session_context: Optional[Dict] = None,
         language: Optional[str] = None
     ) -> Dict[str, any]:
@@ -208,9 +225,14 @@ class ChatbotService:
         Get chatbot response with safety checks and depression detection
         Returns dict with response, metadata, and safety flags
         """
-        # Detect language if not provided
+        # Detect language if not provided, or if provided language doesn't match message
+        detected_lang = self.detect_language(message)
         if not language:
-            language = self.detect_language(message)
+            language = detected_lang
+        elif language != detected_lang and detected_lang != 'en':
+            # If detected language differs from provided and is not English, use detected
+            # This handles cases where user types in Sinhala/Tamil but language param is 'en'
+            language = detected_lang
         
         # Safety check - CRISIS DETECTION (highest priority)
         is_crisis = self.safety_service.detect_crisis(message, language)

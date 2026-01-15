@@ -11,10 +11,12 @@ import json
 from app.routes.auth import get_current_user
 from app.services.typing_analysis import TypingAnalysisService
 from app.services.fake_detection import FakeDetectionService
+from app.services.batch_fake_detection import BatchFakeDetectionService
 from app.services.firestore_service import FirestoreService
 
 router = APIRouter()
 firestore_service = FirestoreService()
+batch_fake_service = BatchFakeDetectionService()
 
 class TypingData(BaseModel):
     keystroke_timings: List[float]  # Time between keystrokes
@@ -91,13 +93,43 @@ async def analyze_typing(
         'risk_level': analysis_result.get("risk_level", "low")
     })
     
+    # Check if we should analyze a batch (1-5, 15-20, 30-35)
+    all_typing_analyses = firestore_service.get_user_typing_analyses(user_id)
+    current_count = len(all_typing_analyses)
+    
+    batch_result = None
+    batch_info = batch_fake_service.should_check_batch(current_count, "typing")
+    if batch_info:
+        # Analyze this batch
+        batch_result = await batch_fake_service.analyze_typing_batch(user_id, batch_info)
+        
+        # Create alert if batch indicates fake user
+        if batch_result.get("is_fake", False) and batch_result.get("fake_score", 0) >= 0.6:
+            firestore_service.create_alert({
+                'user_id': user_id,
+                'alert_type': 'batch_fake_detected',
+                'severity': 'high' if batch_result.get("fake_score", 0) >= 0.8 else 'medium',
+                'message': f"Fake user detected in {batch_result.get('batch_name')} batch (chats {batch_result.get('batch_range')}). Fake score: {batch_result.get('fake_score', 0):.2f}"
+            })
+    
+    # Use batch result if available, otherwise use individual result
+    final_is_fake = batch_result.get("is_fake", False) if batch_result else fake_result.get("is_fake", False)
+    final_fake_confidence = max(
+        batch_result.get("fake_score", 0) if batch_result else 0,
+        fake_result.get("confidence", 0)
+    )
+    
     return TypingAnalysisResponse(
         session_id=session['id'],
         depression_score=analysis_result.get("depression_score", 0),
         risk_level=analysis_result.get("risk_level", "low"),
-        is_fake=fake_result.get("is_fake", False),
-        fake_confidence=fake_result.get("confidence", 0),
-        insights=analysis_result.get("insights", {})
+        is_fake=final_is_fake,
+        fake_confidence=final_fake_confidence,
+        insights={
+            **analysis_result.get("insights", {}),
+            "batch_analysis": batch_result if batch_result else None,
+            "total_chats": current_count
+        }
     )
 
 @router.get("/history")
@@ -119,4 +151,12 @@ async def get_typing_history(
         }
         for analysis in analyses
     ]
+
+@router.get("/batch-status")
+async def get_typing_batch_status(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get batch analysis status for typing patterns"""
+    user_id = current_user.get('id')
+    return await batch_fake_service.get_user_batch_status(user_id, "typing")
 

@@ -84,6 +84,7 @@ function UserProfile() {
                       <TableCell>Start Time</TableCell>
                       <TableCell>Depression Score</TableCell>
                       <TableCell>Risk Level</TableCell>
+                      <TableCell>Mood</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -99,6 +100,13 @@ function UserProfile() {
                             : 'N/A'}
                         </TableCell>
                         <TableCell>{session.risk_level || 'low'}</TableCell>
+                        <TableCell>
+                          {session.mood || (
+                            <span style={{ color: '#999', fontStyle: 'italic' }}>
+                              Not set
+                            </span>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
