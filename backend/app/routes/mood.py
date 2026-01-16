@@ -47,8 +47,8 @@ async def create_mood_checkin(
     session_to_update = None
     
     if recent_sessions:
-        from datetime import timedelta, timezone
-        now = datetime.now(timezone.utc)
+        from datetime import timedelta
+        now = datetime.utcnow()
         two_hours_ago = now - timedelta(hours=2)
         
         # Helper function to parse datetime from various formats

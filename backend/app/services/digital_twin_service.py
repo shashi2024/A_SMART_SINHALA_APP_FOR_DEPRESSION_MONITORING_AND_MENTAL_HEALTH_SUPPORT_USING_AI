@@ -3,7 +3,7 @@ Digital Twin service for mental health profile management - Using Firestore
 """
 
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 import json
 
 from app.services.firestore_service import FirestoreService
@@ -21,7 +21,7 @@ class DigitalTwinService:
             "trends": {},
             "risk_factors": [],
             "strengths": [],
-            "created_at": datetime.now(timezone.utc).isoformat()
+            "created_at": datetime.utcnow().isoformat()
         }
         
         self.firestore_service.create_or_update_digital_twin(user_id, {
@@ -49,7 +49,7 @@ class DigitalTwinService:
         
         # Get mood check-ins (last 30 days for daily risk updates)
         from datetime import timedelta
-        thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).date().isoformat()
+        thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).date().isoformat()
         mood_checkins = self.firestore_service.get_user_mood_checkins(
             user_id=user_id,
             limit=100,
@@ -66,7 +66,7 @@ class DigitalTwinService:
             "risk_level": self._determine_overall_risk(sessions, mood_checkins),
             "trends": self._calculate_trends(sessions),
             "mood_trends": self._calculate_mood_trends(mood_checkins),
-            "last_updated": datetime.now(timezone.utc).isoformat()
+            "last_updated": datetime.utcnow().isoformat()
         }
         
         risk_factors = self._identify_risk_factors(sessions, voice_analyses, typing_analyses, mood_checkins)
@@ -151,7 +151,7 @@ class DigitalTwinService:
         
         # Get recent mood check-ins (last 7 days)
         from datetime import timedelta
-        seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+        seven_days_ago = datetime.utcnow() - timedelta(days=7)
         
         recent_moods = []
         for checkin in mood_checkins:
@@ -192,7 +192,7 @@ class DigitalTwinService:
         
         # Get moods from last 7 days vs previous 7 days
         from datetime import timedelta
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         seven_days_ago = now - timedelta(days=7)
         fourteen_days_ago = now - timedelta(days=14)
         
@@ -295,7 +295,7 @@ class DigitalTwinService:
         # Check mood patterns (last 7 days)
         if mood_checkins:
             from datetime import timedelta
-            seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+            seven_days_ago = datetime.utcnow() - timedelta(days=7)
             
             recent_moods = []
             for checkin in mood_checkins:
