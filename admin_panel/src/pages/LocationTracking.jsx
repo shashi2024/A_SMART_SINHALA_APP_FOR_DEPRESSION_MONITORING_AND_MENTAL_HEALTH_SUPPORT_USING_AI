@@ -46,25 +46,29 @@ function LocationTracking() {
 
   const loadLocationData = async () => {
     try {
-      // Load users for location tracking
-      const usersResponse = await api.get('/admin/dashboard');
-      setUsers(usersResponse.data.users || []);
-
-      // Load location data (if available)
-      // Note: This assumes location tracking data exists
-      // For now, we'll show users with their last activity as location data
-      setLocations(
-        (usersResponse.data.users || []).map((user) => ({
-          user_id: user.user_id,
-          username: user.username,
-          email: user.email,
-          last_location: 'Not tracked',
-          last_activity: user.last_activity,
-          status: 'offline',
-        }))
-      );
+      // Load location data from location API
+      const locationsResponse = await api.get('/location/all');
+      const locationsData = locationsResponse.data.locations || [];
+      
+      setLocations(locationsData.map((loc) => ({
+        user_id: loc.user_id,
+        username: loc.username,
+        email: loc.email,
+        phone_number: loc.phone_number,
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        last_location: loc.latitude && loc.longitude 
+          ? `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}`
+          : 'Not tracked',
+        last_activity: loc.last_updated,
+        status: loc.last_updated ? 'online' : 'offline',
+        accuracy: loc.accuracy,
+      })));
+      
+      setUsers(locationsData);
     } catch (error) {
       console.error('Failed to load location data:', error);
+      setLocations([]);
     } finally {
       setLoading(false);
     }
@@ -160,6 +164,7 @@ function LocationTracking() {
                   <TableHead>
                     <TableRow>
                       <TableCell>Username</TableCell>
+                      <TableCell>Phone Number</TableCell>
                       <TableCell>Email</TableCell>
                       <TableCell>Last Location</TableCell>
                       <TableCell>Last Activity</TableCell>
@@ -178,11 +183,26 @@ function LocationTracking() {
                       locations.map((location) => (
                         <TableRow key={location.user_id}>
                           <TableCell>{location.username}</TableCell>
+                          <TableCell>
+                            {location.phone_number || 'N/A'}
+                          </TableCell>
                           <TableCell>{location.email}</TableCell>
                           <TableCell>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <LocationIcon sx={{ color: colors.darkGreen, fontSize: 20 }} />
                               {location.last_location}
+                              {location.latitude && location.longitude && (
+                                <Button
+                                  size="small"
+                                  onClick={() => {
+                                    const url = `https://www.google.com/maps?q=${location.latitude},${location.longitude}`;
+                                    window.open(url, '_blank');
+                                  }}
+                                  sx={{ ml: 1, fontSize: '0.7rem', minWidth: 'auto', p: 0.5 }}
+                                >
+                                  View Map
+                                </Button>
+                              )}
                             </Box>
                           </TableCell>
                           <TableCell>

@@ -1,11 +1,11 @@
 {
-    "name": "depression_monitoring_app",
-    "short_name": "depression_monitoring_app",
+    "name": "Sahana",
+    "short_name": "Sahana",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Sahana - A smart Sinhala app for depression monitoring and mental health support using AI",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

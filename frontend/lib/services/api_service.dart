@@ -413,5 +413,36 @@ class ApiService {
       rethrow;
     }
   }
+
+  // ========== LOCATION METHODS ==========
+
+  Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> body) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: _headers,
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else {
+        final errorBody = response.body;
+        debugPrint('POST API Error: ${response.statusCode} - $errorBody');
+        try {
+          final errorJson = jsonDecode(errorBody);
+          throw Exception(errorJson['detail'] ?? 'Request failed: ${response.statusCode}');
+        } catch (_) {
+          throw Exception('Request failed: ${response.statusCode} - $errorBody');
+        }
+      }
+    } catch (e) {
+      if (e.toString().contains('Exception')) {
+        rethrow;
+      }
+      debugPrint('POST network error: $e');
+      throw Exception('Network error: ${e.toString()}');
+    }
+  }
 }
 

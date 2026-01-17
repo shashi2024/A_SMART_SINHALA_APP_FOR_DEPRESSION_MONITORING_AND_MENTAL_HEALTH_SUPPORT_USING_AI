@@ -1,5 +1,5 @@
 name: depression_monitoring_app
-description: A smart Sinhala app for depression monitoring and mental health support using AI
+description: Sahana - A smart Sinhala app for depression monitoring and mental health support using AI
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -27,6 +27,7 @@ dependencies:
   universal_html: ^2.2.4
   speech_to_text: ^7.0.0
   flutter_tts: ^4.0.2
+  geolocator: ^13.0.1
 
 dev_dependencies:
   flutter_test:

@@ -360,9 +360,9 @@ class _CallScreenSimpleState extends State<CallScreenSimple> {
 
             // Call view with avatar and status
             Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
                   // Avatar with speaking indicator
                   Stack(
                     alignment: Alignment.center,
@@ -397,27 +397,27 @@ class _CallScreenSimpleState extends State<CallScreenSimple> {
                         child: Center(
                           child: Icon(
                             _isBotSpeaking ? Icons.record_voice_over : Icons.person,
-                            size: 80,
+                          size: 80,
                             color: Colors.white,
                           ),
                         ),
                       ),
                     ],
-                  ),
+                        ),
                   
                   const SizedBox(height: 20),
                   
                   // Caller name
-                  Text(
-                    _getCallerName(),
-                    style: const TextStyle(
-                      color: Colors.white,
+                        Text(
+                          _getCallerName(),
+                          style: const TextStyle(
+                            color: Colors.white,
                       fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                   
-                  const SizedBox(height: 8),
+                        const SizedBox(height: 8),
                   
                   // Status indicator
                   Container(
@@ -452,9 +452,9 @@ class _CallScreenSimpleState extends State<CallScreenSimple> {
                               ? 'Speaking...'
                               : _isListening 
                                   ? 'Listening...'
-                                  : callProvider.callStatus == CallStatus.connected
+                              : callProvider.callStatus == CallStatus.connected
                                       ? 'Connected'
-                                      : 'Connecting...',
+                                  : 'Connecting...',
                           style: TextStyle(
                             color: _isBotSpeaking 
                                 ? Colors.green
@@ -476,14 +476,14 @@ class _CallScreenSimpleState extends State<CallScreenSimple> {
                     child: Container(
                       constraints: const BoxConstraints(maxHeight: 150),
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
+                            decoration: BoxDecoration(
                         color: Colors.grey[900],
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: _isListening ? Colors.blue : Colors.grey[700]!,
                           width: 1,
                         ),
-                      ),
+                            ),
                       child: SingleChildScrollView(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -520,7 +520,7 @@ class _CallScreenSimpleState extends State<CallScreenSimple> {
                                   const SizedBox(width: 8),
                                   Text(
                                     'You:',
-                                    style: TextStyle(
+                              style: TextStyle(
                                       color: Colors.blue[400],
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
@@ -532,16 +532,16 @@ class _CallScreenSimpleState extends State<CallScreenSimple> {
                               Text(
                                 _currentText,
                                 style: const TextStyle(
-                                  color: Colors.white70,
+                                color: Colors.white70,
                                   fontSize: 14,
                                   fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
+                  ),
+                ),
                   ),
                   
                   if (!_speechAvailable && !kIsWeb) ...[
@@ -600,24 +600,24 @@ class _CallScreenSimpleState extends State<CallScreenSimple> {
                   ),
                 ],
               ),
-            ),
-            
-            // End call button
+                  ),
+
+                  // End call button
             Padding(
               padding: const EdgeInsets.only(bottom: 32),
               child: _buildControlButton(
-                icon: Icons.call_end,
-                color: Colors.red,
+                    icon: Icons.call_end,
+                    color: Colors.red,
                 label: 'End Call',
                 size: 64,
-                onPressed: () async {
+                    onPressed: () async {
                   await _stopSpeaking();
                   _stopListening();
-                  await callProvider.endCall();
-                  if (mounted) {
-                    Navigator.pop(context);
-                  }
-                },
+                      await callProvider.endCall();
+                      if (mounted) {
+                        Navigator.pop(context);
+                      }
+                    },
               ),
             ),
           ],
@@ -637,16 +637,16 @@ class _CallScreenSimpleState extends State<CallScreenSimple> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
-            shape: BoxShape.circle,
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.2),
+        shape: BoxShape.circle,
             border: Border.all(color: color.withOpacity(0.5), width: 2),
-          ),
-          child: IconButton(
+      ),
+      child: IconButton(
             icon: Icon(icon, color: color, size: size * 0.5),
-            onPressed: onPressed,
+        onPressed: onPressed,
             padding: EdgeInsets.zero,
           ),
         ),

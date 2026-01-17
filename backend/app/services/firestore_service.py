@@ -100,10 +100,28 @@ class FirestoreService:
             users_ref = self.db.collection('users')
             query = users_ref.where('email', '==', email).limit(1).stream()
             for doc in query:
-                return doc.to_dict()
+                user_data = doc.to_dict()
+                if user_data:
+                    user_data['id'] = doc.id
+                return user_data
             return None
         except Exception as e:
             print(f"[ERROR] get_user_by_email failed: {e}")
+            return None
+    
+    def get_user_by_phone(self, phone_number: str) -> Optional[Dict]:
+        """Get user by phone number"""
+        try:
+            users_ref = self.db.collection('users')
+            query = users_ref.where('phone_number', '==', phone_number).limit(1).stream()
+            for doc in query:
+                user_data = doc.to_dict()
+                if user_data:
+                    user_data['id'] = doc.id
+                return user_data
+            return None
+        except Exception as e:
+            print(f"[ERROR] get_user_by_phone failed: {e}")
             return None
     
     def update_user(self, user_id: str, updates: Dict):
