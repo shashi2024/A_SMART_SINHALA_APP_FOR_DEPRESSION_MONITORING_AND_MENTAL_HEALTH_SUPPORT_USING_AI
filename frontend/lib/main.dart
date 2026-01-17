@@ -46,7 +46,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => DigitalTwinProvider()),
       ],
       child: MaterialApp(
-        title: 'Depression Monitoring App',
+        title: 'Sahana',
         theme: ThemeData(
           primarySwatch: Colors.blue,
           useMaterial3: true,
