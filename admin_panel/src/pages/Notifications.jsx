@@ -17,6 +17,8 @@ import {
   Warning as WarningIcon,
   Info as InfoIcon,
   CheckCircle as CheckCircleIcon,
+  LocalHospital as LocalHospitalIcon,
+  PersonAdd as PersonAddIcon,
 } from '@mui/icons-material';
 
 // Color palette
@@ -44,12 +46,22 @@ function Notifications() {
 
   const loadNotifications = async () => {
     try {
-      const response = await api.get('/admin/alerts');
-      setNotifications(response.data.alerts || []);
+      const response = await api.get('/admin/notifications');
+      setNotifications(response.data.notifications || []);
     } catch (error) {
       console.error('Failed to load notifications:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleMarkAsRead = async (notificationId) => {
+    try {
+      await api.post(`/admin/notifications/${notificationId}/read`);
+      // Reload notifications
+      loadNotifications();
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
     }
   };
 
@@ -80,8 +92,17 @@ function Notifications() {
   const filteredNotifications = tabValue === 0
     ? notifications
     : tabValue === 1
-    ? notifications.filter((n) => !n.is_resolved)
-    : notifications.filter((n) => n.is_resolved);
+    ? notifications.filter((n) => !n.is_read)
+    : notifications.filter((n) => n.is_read);
+
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'doctor_assignment':
+        return <LocalHospitalIcon />;
+      default:
+        return <NotificationsIcon />;
+    }
+  };
 
   if (loading) {
     return (
@@ -103,8 +124,8 @@ function Notifications() {
         sx={{ mb: 3 }}
       >
         <Tab label="All" />
-        <Tab label="Unresolved" />
-        <Tab label="Resolved" />
+        <Tab label="Unread" />
+        <Tab label="Read" />
       </Tabs>
 
       <Stack spacing={2}>
@@ -122,15 +143,20 @@ function Notifications() {
               key={notification.id}
               sx={{
                 borderRadius: 2,
-                borderLeft: `4px solid ${getSeverityColor(notification.severity)}`,
+                borderLeft: `4px solid ${notification.type === 'doctor_assignment' ? colors.darkGreen : colors.blue}`,
+                bgcolor: notification.is_read ? 'transparent' : colors.veryLightBlue,
                 '&:hover': {
                   boxShadow: 4,
                   cursor: 'pointer',
                 },
               }}
               onClick={() => {
-                if (notification.user_id) {
-                  navigate(`/users/${notification.user_id}`);
+                if (!notification.is_read) {
+                  handleMarkAsRead(notification.id);
+                }
+                if (notification.patient_id) {
+                  // Navigate to patient details if available
+                  navigate(`/patients-risk`);
                 }
               }}
             >
@@ -138,28 +164,32 @@ function Notifications() {
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                   <Box sx={{ flex: 1 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                      <Box sx={{ color: getSeverityColor(notification.severity) }}>
-                        {getSeverityIcon(notification.severity)}
+                      <Box sx={{ color: notification.type === 'doctor_assignment' ? colors.darkGreen : colors.blue }}>
+                        {getNotificationIcon(notification.type)}
                       </Box>
                       <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                        {notification.alert_type || 'Alert'}
+                        {notification.title || 'Notification'}
                       </Typography>
-                      <Chip
-                        label={notification.severity || 'Info'}
-                        size="small"
-                        sx={{
-                          bgcolor: getSeverityColor(notification.severity),
-                          color: 'white',
-                          fontWeight: 600,
-                        }}
-                      />
-                      {notification.is_resolved && (
-                        <Chip label="Resolved" size="small" color="success" />
+                      {notification.type === 'doctor_assignment' && (
+                        <Chip
+                          label="Assignment"
+                          size="small"
+                          sx={{
+                            bgcolor: colors.darkGreen,
+                            color: 'white',
+                            fontWeight: 600,
+                          }}
+                        />
+                      )}
+                      {!notification.is_read && (
+                        <Chip label="New" size="small" color="primary" />
                       )}
                     </Box>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      User: {notification.username || 'Unknown'}
-                    </Typography>
+                    {notification.patient_username && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        Patient: {notification.patient_username}
+                      </Typography>
+                    )}
                     <Typography variant="body1">{notification.message}</Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                       {new Date(notification.created_at).toLocaleString()}

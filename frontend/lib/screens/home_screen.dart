@@ -122,15 +122,15 @@ class _HomeScreenState extends State<HomeScreen> {
           // Header with greeting and language selector
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Greeting Section
-              Text(
-                'Hi $firstName!',
-                style: const TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
+        children: [
+          // Greeting Section
+          Text(
+            'Hi $firstName!',
+            style: const TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
               ),
               // Language selector
               PopupMenuButton<String>(

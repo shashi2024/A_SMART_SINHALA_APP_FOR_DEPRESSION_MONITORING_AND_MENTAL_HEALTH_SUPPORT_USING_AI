@@ -137,16 +137,16 @@ class _ChatScreenState extends State<ChatScreen> {
                             language: callProvider.language,
                           );
                           if (mounted) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => CallScreenSimple(
-                                  callId: callId,
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CallScreenSimple(
+                              callId: callId,
                                   callType: 'ai_practice',
-                                  calleeName: 'Sahana',
-                                ),
-                              ),
-                            );
+                              calleeName: 'Sahana',
+                            ),
+                          ),
+                        );
                           }
                         } catch (e) {
                           if (mounted) {
