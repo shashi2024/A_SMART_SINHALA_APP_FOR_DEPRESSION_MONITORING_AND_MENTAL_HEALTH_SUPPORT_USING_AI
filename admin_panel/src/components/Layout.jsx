@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
@@ -13,6 +13,7 @@ import {
   Avatar,
   Typography,
   IconButton,
+  Badge,
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import BarChartIcon from '@mui/icons-material/BarChart';
@@ -21,11 +22,13 @@ import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
 import TimelineIcon from '@mui/icons-material/Timeline';
 import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
 import SettingsIcon from '@mui/icons-material/Settings';
+import PeopleIcon from '@mui/icons-material/People';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import SearchIcon from '@mui/icons-material/Search';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import FolderIcon from '@mui/icons-material/Folder';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
 
 const drawerWidth = 280;
 
@@ -43,6 +46,7 @@ function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user, checkAdminStatus } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
   
   // Fetch user info on mount
   useEffect(() => {
@@ -50,9 +54,37 @@ function Layout() {
       checkAdminStatus();
     }
   }, []);
+
+  // Fetch notification count
+  const fetchNotificationCount = async () => {
+    try {
+      const response = await api.get('/admin/notifications');
+      const notifications = response.data.notifications || [];
+      const unread = notifications.filter(n => !n.is_read).length;
+      setUnreadCount(unread);
+    } catch (error) {
+      console.error('Failed to fetch notification count:', error);
+    }
+  };
+
+  useEffect(() => {
+    // Fetch immediately and then every 15 seconds
+    fetchNotificationCount();
+    const interval = setInterval(fetchNotificationCount, 15000);
+
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // Refresh when navigating to/from notifications page
+  useEffect(() => {
+    if (location.pathname === '/notifications' || location.pathname === '/connect') {
+      fetchNotificationCount();
+    }
+  }, [location.pathname]);
   
   const displayName = user?.username || user?.email?.split('@')[0] || 'Admin';
 
+  // Build menu items based on user role
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Patients Risk Level', icon: <BarChartIcon />, path: '/patients-risk' },
@@ -60,6 +92,8 @@ function Layout() {
     { text: 'Doctor Connect', icon: <ShoppingBagIcon />, path: '/connect' },
     { text: 'Location track', icon: <TimelineIcon />, path: '/location-track' },
     { text: 'Digital twin', icon: <ChatBubbleIcon />, path: '/digital-twin' },
+    // Only show User Management for full admins (not sub-admins, doctors, or nurses)
+    ...(user?.is_admin ? [{ text: 'User Management', icon: <PeopleIcon />, path: '/user-management' }] : []),
     { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
   ];
 
@@ -284,7 +318,9 @@ function Layout() {
               onClick={() => navigate('/notifications')}
               title="Notifications"
             >
-              <NotificationsNoneIcon />
+              <Badge badgeContent={unreadCount} color="error">
+                <NotificationsNoneIcon />
+              </Badge>
             </IconButton>
             <IconButton
               sx={{ color: '#666' }}

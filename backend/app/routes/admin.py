@@ -5,7 +5,8 @@ Admin panel routes for hospital management - Using Firestore
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
+from firebase_admin import firestore
 
 from app.routes.auth import get_current_user
 from app.services.firestore_service import FirestoreService
@@ -64,7 +65,12 @@ async def get_dashboard(
         from datetime import datetime, timedelta
         
         # Get all active users
-        users = firestore_service.get_all_active_users()
+        all_users = firestore_service.get_all_active_users()
+        # Filter out admins and sub-admins - only include patients (regular users)
+        users = [
+            user for user in all_users 
+            if not user.get('is_admin', False) and not user.get('is_sub_admin', False)
+        ]
         dashboard_data = []
         
         # Statistics for key metrics
@@ -801,4 +807,406 @@ async def delete_user(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="Failed to delete user")
+
+# ========== DOCTOR/NURSE-PATIENT ASSIGNMENT ==========
+
+class AssignDoctorRequest(BaseModel):
+    patient_id: str
+    doctor_id: Optional[str] = None
+    nurse_id: Optional[str] = None
+    notes: Optional[str] = None
+
+@router.post("/assign-doctor")
+async def assign_doctor_or_nurse_to_patient(
+    assignment: AssignDoctorRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Assign a doctor or nurse to a patient (accessible by admin, nurse, and doctor)"""
+    # Check if user is admin, nurse, or doctor
+    is_admin = current_user.get('is_admin', False) or current_user.get('is_sub_admin', False)
+    is_nurse = current_user.get('role') == 'nurse'
+    is_doctor = current_user.get('role') == 'doctor'
+    
+    if not (is_admin or is_nurse or is_doctor):
+        raise HTTPException(status_code=403, detail="Only admins, nurses, and doctors can assign doctors/nurses to patients")
+    
+    # Validate that either doctor_id or nurse_id is provided
+    if not assignment.doctor_id and not assignment.nurse_id:
+        raise HTTPException(status_code=400, detail="Either doctor_id or nurse_id must be provided")
+    
+    if assignment.doctor_id and assignment.nurse_id:
+        raise HTTPException(status_code=400, detail="Cannot assign both doctor and nurse at the same time. Please assign one at a time.")
+    
+    try:
+        # Verify patient exists and is not an admin/sub-admin
+        patient = firestore_service.get_user_by_id(assignment.patient_id)
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        
+        if patient.get('is_admin') or patient.get('is_sub_admin'):
+            raise HTTPException(status_code=400, detail="Cannot assign doctor/nurse to admin/sub-admin")
+        
+        assigned_user = None
+        assigned_role = None
+        assignment_type = None
+        
+        if assignment.doctor_id:
+            # Verify doctor exists and has doctor role
+            doctor = firestore_service.get_user_by_id(assignment.doctor_id)
+            if not doctor:
+                raise HTTPException(status_code=404, detail="Doctor not found")
+            
+            if doctor.get('role') != 'doctor':
+                raise HTTPException(status_code=400, detail="User is not a doctor")
+            
+            assigned_user = doctor
+            assigned_role = 'doctor'
+            assignment_type = 'doctor_assignment'
+        else:
+            # Verify nurse exists and has nurse role
+            nurse = firestore_service.get_user_by_id(assignment.nurse_id)
+            if not nurse:
+                raise HTTPException(status_code=404, detail="Nurse not found")
+            
+            if nurse.get('role') != 'nurse':
+                raise HTTPException(status_code=400, detail="User is not a nurse")
+            
+            assigned_user = nurse
+            assigned_role = 'nurse'
+            assignment_type = 'nurse_assignment'
+        
+        # Deactivate any existing assignments for this patient
+        existing_assignments = firestore_service.db.collection('doctor_assignments').where('patient_id', '==', assignment.patient_id).where('status', '==', 'active').stream()
+        for existing_doc in existing_assignments:
+            existing_doc.reference.update({'status': 'inactive'})
+        
+        # Create assignment record
+        assignment_data = {
+            'patient_id': assignment.patient_id,
+            'patient_username': patient.get('username', 'Unknown'),
+            'assigned_by': current_user.get('id'),
+            'assigned_by_username': current_user.get('username', 'Unknown'),
+            'notes': assignment.notes,
+            'status': 'active',
+            'created_at': datetime.now(timezone.utc).isoformat(),
+            'is_read': False
+        }
+        
+        if assignment.doctor_id:
+            assignment_data['doctor_id'] = assignment.doctor_id
+            assignment_data['doctor_username'] = assigned_user.get('username', 'Unknown')
+        else:
+            assignment_data['nurse_id'] = assignment.nurse_id
+            assignment_data['nurse_username'] = assigned_user.get('username', 'Unknown')
+        
+        # Save assignment to Firestore
+        assignment_ref = firestore_service.db.collection('doctor_assignments').document()
+        assignment_data['id'] = assignment_ref.id
+        assignment_ref.set(assignment_data)
+        
+        # Create notification for doctor/nurse
+        # Use the assigned_user object we already have (doctor or nurse)
+        # The assigned_user already has the correct 'id' field from get_user_by_id
+        assigned_user_id = assigned_user.get('id') or (assignment.doctor_id or assignment.nurse_id)
+        
+        # Store both the id field and try to get document ID for better matching
+        # Get the document ID by querying users collection
+        user_doc_id = None
+        try:
+            users_ref = firestore_service.db.collection('users')
+            # Try to find by id field first
+            query = users_ref.where('id', '==', assigned_user_id).limit(1).stream()
+            for doc in query:
+                user_doc_id = doc.id
+                break
+            
+            # If not found, try direct document lookup
+            if not user_doc_id:
+                doc = users_ref.document(assigned_user_id).get()
+                if doc.exists:
+                    user_doc_id = doc.id
+        except Exception as e:
+            print(f"[WARNING] Could not get document ID for user {assigned_user_id}: {e}")
+        
+        # Use document ID if available, otherwise use the id field
+        notification_user_id = user_doc_id or assigned_user_id
+        
+        notification_data = {
+            'user_id': notification_user_id,  # Use document ID for proper matching
+            'user_id_alt': assigned_user_id,  # Also store alternative ID for fallback
+            'type': assignment_type,
+            'title': f'New Patient Assignment',
+            'message': f"You have been assigned to patient: {patient.get('username', 'Unknown')}",
+            'patient_id': assignment.patient_id,
+            'patient_username': patient.get('username', 'Unknown'),
+            'assignment_id': assignment_ref.id,
+            'is_read': False,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        }
+        
+        notification_ref = firestore_service.db.collection('notifications').document()
+        notification_data['id'] = notification_ref.id
+        notification_ref.set(notification_data)
+        
+        role_name = 'Doctor' if assignment.doctor_id else 'Nurse'
+        print(f"[INFO] {role_name} {assigned_user.get('username')} assigned to patient {patient.get('username')} by {current_user.get('username')}")
+        print(f"[INFO] Created notification for user_id: {notification_user_id} (alt: {assigned_user_id}), type: {assignment_type}, patient: {patient.get('username')}")
+        
+        return {
+            "message": f"{role_name} assigned successfully",
+            "assignment_id": assignment_ref.id,
+            "notification_id": notification_ref.id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Failed to assign doctor/nurse: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to assign doctor/nurse: {str(e)}")
+
+@router.get("/patients")
+async def get_all_patients(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all patients (regular users, not admins/sub-admins) - accessible by admin, nurse, and doctor"""
+    is_admin = current_user.get('is_admin', False) or current_user.get('is_sub_admin', False)
+    is_nurse = current_user.get('role') == 'nurse'
+    is_doctor = current_user.get('role') == 'doctor'
+    
+    if not (is_admin or is_nurse or is_doctor):
+        raise HTTPException(status_code=403, detail="Only admins, nurses, and doctors can view patients")
+    
+    try:
+        users_ref = firestore_service.db.collection('users')
+        patients = []
+        
+        for doc in users_ref.stream():
+            user_data = doc.to_dict()
+            if not user_data:
+                continue
+            
+            # Only include patients (not admins/sub-admins)
+            if user_data.get('is_active', True) and not user_data.get('is_admin', False) and not user_data.get('is_sub_admin', False):
+                user_data['id'] = doc.id
+                # Get assigned doctor or nurse if any
+                assignments = firestore_service.db.collection('doctor_assignments').where('patient_id', '==', doc.id).where('status', '==', 'active').limit(1).stream()
+                assigned_doctor = None
+                assigned_nurse = None
+                for assignment_doc in assignments:
+                    assignment = assignment_doc.to_dict()
+                    if assignment.get('doctor_id'):
+                        doctor = firestore_service.get_user_by_id(assignment.get('doctor_id'))
+                        if doctor:
+                            assigned_doctor = {
+                                'id': doctor.get('id'),
+                                'username': doctor.get('username'),
+                                'email': doctor.get('email')
+                            }
+                    elif assignment.get('nurse_id'):
+                        nurse = firestore_service.get_user_by_id(assignment.get('nurse_id'))
+                        if nurse:
+                            assigned_nurse = {
+                                'id': nurse.get('id'),
+                                'username': nurse.get('username'),
+                                'email': nurse.get('email')
+                            }
+                    break
+                
+                user_data['assigned_doctor'] = assigned_doctor
+                user_data['assigned_nurse'] = assigned_nurse
+                patients.append(user_data)
+        
+        return {"patients": patients}
+    except Exception as e:
+        print(f"[ERROR] Failed to get patients: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Failed to retrieve patients")
+
+@router.get("/doctors")
+async def get_all_doctors(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all doctors - accessible by admin, nurse, and doctor"""
+    is_admin = current_user.get('is_admin', False) or current_user.get('is_sub_admin', False)
+    is_nurse = current_user.get('role') == 'nurse'
+    is_doctor = current_user.get('role') == 'doctor'
+    
+    if not (is_admin or is_nurse or is_doctor):
+        raise HTTPException(status_code=403, detail="Only admins, nurses, and doctors can view doctors")
+    
+    try:
+        users_ref = firestore_service.db.collection('users')
+        doctors = []
+        
+        for doc in users_ref.stream():
+            user_data = doc.to_dict()
+            if not user_data:
+                continue
+            
+            # Only include doctors
+            if user_data.get('is_active', True) and user_data.get('role') == 'doctor':
+                user_data['id'] = doc.id
+                # Count assigned patients
+                assignments = firestore_service.db.collection('doctor_assignments').where('doctor_id', '==', doc.id).where('status', '==', 'active').stream()
+                patient_count = sum(1 for _ in assignments)
+                user_data['assigned_patients_count'] = patient_count
+                doctors.append(user_data)
+        
+        return {"doctors": doctors}
+    except Exception as e:
+        print(f"[ERROR] Failed to get doctors: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Failed to retrieve doctors")
+
+@router.get("/nurses")
+async def get_all_nurses(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all nurses - accessible by admin, nurse, and doctor"""
+    is_admin = current_user.get('is_admin', False) or current_user.get('is_sub_admin', False)
+    is_nurse = current_user.get('role') == 'nurse'
+    is_doctor = current_user.get('role') == 'doctor'
+    
+    if not (is_admin or is_nurse or is_doctor):
+        raise HTTPException(status_code=403, detail="Only admins, nurses, and doctors can view nurses")
+    
+    try:
+        users_ref = firestore_service.db.collection('users')
+        nurses = []
+        
+        for doc in users_ref.stream():
+            user_data = doc.to_dict()
+            if not user_data:
+                continue
+            
+            # Only include nurses
+            if user_data.get('is_active', True) and user_data.get('role') == 'nurse':
+                user_data['id'] = doc.id
+                # Count assigned patients (nurses can also be assigned to patients)
+                assignments = firestore_service.db.collection('doctor_assignments').where('nurse_id', '==', doc.id).where('status', '==', 'active').stream()
+                patient_count = sum(1 for _ in assignments)
+                user_data['assigned_patients_count'] = patient_count
+                nurses.append(user_data)
+        
+        return {"nurses": nurses}
+    except Exception as e:
+        print(f"[ERROR] Failed to get nurses: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Failed to retrieve nurses")
+
+@router.get("/notifications")
+async def get_notifications(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get notifications for current user (doctors and nurses get assignment notifications)"""
+    user_id = current_user.get('id')
+    
+    # Get document ID by querying users collection
+    user_doc_id = None
+    try:
+        users_ref = firestore_service.db.collection('users')
+        # Try to find by id field first
+        query = users_ref.where('id', '==', user_id).limit(1).stream()
+        for doc in query:
+            user_doc_id = doc.id
+            break
+        
+        # If not found, try direct document lookup
+        if not user_doc_id:
+            doc = users_ref.document(user_id).get()
+            if doc.exists:
+                user_doc_id = doc.id
+    except Exception as e:
+        print(f"[WARNING] Could not get document ID for user {user_id}: {e}")
+    
+    try:
+        notifications_ref = firestore_service.db.collection('notifications')
+        
+        # Try to get notifications by user_id (try both id field and document ID)
+        notifications = []
+        seen_ids = set()
+        
+        # First try with user_id
+        try:
+            query = notifications_ref.where('user_id', '==', user_id).limit(100)
+            for doc in query.stream():
+                notification = doc.to_dict()
+                notification['id'] = doc.id
+                if notification['id'] not in seen_ids:
+                    notifications.append(notification)
+                    seen_ids.add(notification['id'])
+        except Exception as e:
+            print(f"[WARNING] Query with user_id failed: {e}")
+        
+        # Also try with document ID if different
+        if user_doc_id and user_doc_id != user_id:
+            try:
+                query = notifications_ref.where('user_id', '==', user_doc_id).limit(100)
+                for doc in query.stream():
+                    notification = doc.to_dict()
+                    notification['id'] = doc.id
+                    if notification['id'] not in seen_ids:
+                        notifications.append(notification)
+                        seen_ids.add(notification['id'])
+            except Exception as e:
+                print(f"[WARNING] Query with document_id failed: {e}")
+        
+        # Also check user_id_alt field for backward compatibility
+        try:
+            query = notifications_ref.where('user_id_alt', '==', user_id).limit(100)
+            for doc in query.stream():
+                notification = doc.to_dict()
+                notification['id'] = doc.id
+                if notification['id'] not in seen_ids:
+                    notifications.append(notification)
+                    seen_ids.add(notification['id'])
+        except Exception as e:
+            print(f"[WARNING] Query with user_id_alt failed: {e}")
+        
+        # Sort by created_at (as ISO string) descending
+        notifications.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        
+        # Limit to 50 most recent
+        notifications = notifications[:50]
+        
+        print(f"[INFO] Found {len(notifications)} notifications for user {user_id} (doc_id: {user_doc_id})")
+        
+        return {"notifications": notifications}
+    except Exception as e:
+        print(f"[ERROR] Failed to get notifications: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Failed to retrieve notifications")
+
+@router.post("/notifications/{notification_id}/read")
+async def mark_notification_read(
+    notification_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Mark notification as read"""
+    user_id = current_user.get('id')
+    
+    try:
+        notification_ref = firestore_service.db.collection('notifications').document(notification_id)
+        notification = notification_ref.get()
+        
+        if not notification.exists:
+            raise HTTPException(status_code=404, detail="Notification not found")
+        
+        notification_data = notification.to_dict()
+        if notification_data.get('user_id') != user_id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        
+        notification_ref.update({'is_read': True})
+        
+        return {"message": "Notification marked as read"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Failed to mark notification as read: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update notification")
 

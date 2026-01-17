@@ -14,6 +14,7 @@ import Reports from './pages/Reports';
 import Connect from './pages/Connect';
 import LocationTracking from './pages/LocationTracking';
 import Settings from './pages/Settings';
+import UserManagement from './pages/UserManagement';
 import PrivateRoute from './components/PrivateRoute';
 import Layout from './components/Layout';
 
@@ -48,6 +49,7 @@ function App() {
             <Route path="location-track" element={<LocationTracking />} />
             <Route path="digital-twin" element={<DigitalTwin />} />
             <Route path="digital-twin/:userId" element={<DigitalTwinView />} />
+            <Route path="user-management" element={<UserManagement />} />
             <Route path="settings" element={<Settings />} />
             {/* Catch-all for protected routes */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
