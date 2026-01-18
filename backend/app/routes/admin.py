@@ -305,13 +305,17 @@ async def get_alerts(
         user_id = alert.get('user_id')
         user = firestore_service.get_user_by_id(user_id) if user_id else None
         
+        # Get severity from alert (either directly or derived from risk_level)
+        severity = alert.get('severity') or alert.get('risk_level', 'low')
+        
         result.append({
             "id": alert.get('id'),
             "user_id": user_id,
             "username": user.get('username', 'Unknown') if user else "Unknown",
-            "alert_type": alert.get('alert_type'),
-            "severity": alert.get('severity'),
-            "message": alert.get('message'),
+            "alert_type": alert.get('alert_type', 'unknown'),
+            "severity": severity,
+            "risk_level": alert.get('risk_level', 'low'),
+            "message": alert.get('message', ''),
             "is_resolved": alert.get('is_resolved', False),
             "created_at": alert.get('created_at')
         })
@@ -429,6 +433,14 @@ async def get_user_profile(
     # Get user statistics (includes mood-based risk)
     stats = firestore_service.get_user_statistics(user_id)
     
+    # Format digital twin data properly for frontend
+    digital_twin_data = None
+    if digital_twin:
+        digital_twin_data = {
+            'mental_health_profile': digital_twin.get('mental_health_profile'),
+            'risk_factors': digital_twin.get('risk_factors')
+        }
+    
     return {
         "user": {
             "id": user.get('id'),
@@ -445,7 +457,7 @@ async def get_user_profile(
             "risk_level": stats.get('risk_level', 'low'),
             "last_activity": stats.get('last_activity')
         },
-        "digital_twin": digital_twin.get('mental_health_profile') if digital_twin else None,
+        "digital_twin": digital_twin_data,
         "sessions": sessions_with_mood,
         "mood_checkins": [
             {
@@ -1209,4 +1221,44 @@ async def mark_notification_read(
     except Exception as e:
         print(f"[ERROR] Failed to mark notification as read: {e}")
         raise HTTPException(status_code=500, detail="Failed to update notification")
+
+@router.get("/user/alerts")
+async def get_user_alerts(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get alerts for the current authenticated user (accessible by any user)"""
+    user_id = current_user.get('id')
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User ID not found")
+    
+    try:
+        # Get all alerts for this user (unresolved and resolved)
+        alerts = firestore_service.get_alerts(resolved=None)
+        
+        # Filter alerts for current user
+        user_alerts = [alert for alert in alerts if alert.get('user_id') == user_id]
+        
+        result = []
+        for alert in user_alerts:
+            result.append({
+                "id": alert.get('id'),
+                "alert_type": alert.get('alert_type', 'unknown'),
+                "severity": alert.get('severity') or alert.get('risk_level', 'low'),
+                "risk_level": alert.get('risk_level', 'low'),
+                "message": alert.get('message', ''),
+                "is_resolved": alert.get('is_resolved', False),
+                "created_at": alert.get('created_at'),
+                "resolved_at": alert.get('resolved_at')
+            })
+        
+        # Sort by created_at descending (newest first)
+        result.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        
+        return {"alerts": result}
+    except Exception as e:
+        print(f"[ERROR] Failed to get user alerts: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Failed to retrieve user alerts")
 
