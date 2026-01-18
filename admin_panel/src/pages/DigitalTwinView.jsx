@@ -8,6 +8,7 @@ import {
   CircularProgress,
   Grid,
   Chip,
+  Box,
 } from '@mui/material';
 
 function DigitalTwinView() {
@@ -26,11 +27,38 @@ function DigitalTwinView() {
       const twinData = response.data.digital_twin;
       
       if (twinData) {
-        setProfile(JSON.parse(twinData.mental_health_profile));
-        setRiskFactors(JSON.parse(twinData.risk_factors));
+        // Parse mental_health_profile if it's a string, otherwise use as-is
+        const profileData = twinData.mental_health_profile;
+        if (typeof profileData === 'string') {
+          setProfile(JSON.parse(profileData));
+        } else if (profileData) {
+          setProfile(profileData);
+        } else {
+          setProfile(null);
+        }
+        
+        // Parse risk_factors if it's a string, otherwise use as-is
+        const riskFactorsData = twinData.risk_factors;
+        if (typeof riskFactorsData === 'string') {
+          try {
+            const parsed = JSON.parse(riskFactorsData);
+            setRiskFactors(Array.isArray(parsed) ? parsed : []);
+          } catch (e) {
+            setRiskFactors([]);
+          }
+        } else if (Array.isArray(riskFactorsData)) {
+          setRiskFactors(riskFactorsData);
+        } else {
+          setRiskFactors([]);
+        }
+      } else {
+        setProfile(null);
+        setRiskFactors([]);
       }
     } catch (error) {
       console.error('Failed to load digital twin:', error);
+      setProfile(null);
+      setRiskFactors([]);
     } finally {
       setLoading(false);
     }
@@ -68,8 +96,8 @@ function DigitalTwinView() {
                       ? (profile.average_depression_score * 100).toFixed(1) + '%'
                       : 'N/A'}
                   </Typography>
-                  <Typography>
-                    Risk Level:{' '}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography component="span">Risk Level:</Typography>
                     <Chip
                       label={profile.risk_level || 'low'}
                       color={
@@ -79,7 +107,7 @@ function DigitalTwinView() {
                       }
                       size="small"
                     />
-                  </Typography>
+                  </Box>
                 </>
               ) : (
                 <Typography>No profile data available</Typography>
