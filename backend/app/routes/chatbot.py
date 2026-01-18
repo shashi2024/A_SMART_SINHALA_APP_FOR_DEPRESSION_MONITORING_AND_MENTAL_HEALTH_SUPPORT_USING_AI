@@ -178,13 +178,15 @@ async def chat(
             
             # Create alert if needed
             if interpretation['needs_escalation']:
+                message = f"PHQ-9 assessment completed with score {total_score}/27. Risk level: {interpretation['risk_level']}."
                 firestore_service.create_alert({
                     'user_id': user_id,
                     'session_id': session_id,
                     'alert_type': 'phq9_high_score',
                     'phq9_score': total_score,
                     'risk_level': interpretation['risk_level'],
-                    'severity': interpretation['severity']
+                    'severity': interpretation['severity'],
+                    'message': message
                 })
             
             # Return completion message
@@ -286,12 +288,14 @@ async def chat(
     
     # If crisis detected, create admin alert (only for authenticated users)
     if (result.get('is_crisis') or result.get('needs_escalation')) and user_id:
+        risk_level = result.get('risk_level', 'severe')
         firestore_service.create_alert({
             'user_id': user_id,
             'session_id': session_id,
             'alert_type': 'crisis' if result.get('is_crisis') else 'high_risk',
             'message': chat_message.message,
-            'risk_level': result.get('risk_level', 'severe'),
+            'risk_level': risk_level,
+            'severity': risk_level,  # Add severity field for consistency
             'depression_score': result.get('depression_score', 0)
         })
         session_updates['needs_escalation'] = True
@@ -427,13 +431,15 @@ async def answer_phq9_question(
         
         # Create alert if needed
         if interpretation['needs_escalation']:
+            message = f"PHQ-9 assessment completed with score {total_score}/27. Risk level: {interpretation['risk_level']}."
             firestore_service.create_alert({
                 'user_id': user_id,
                 'session_id': request.session_id,
                 'alert_type': 'phq9_high_score',
                 'phq9_score': total_score,
                 'risk_level': interpretation['risk_level'],
-                'severity': interpretation['severity']
+                'severity': interpretation.get('severity', interpretation['risk_level']),
+                'message': message
             })
         
         return PHQ9Response(

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { GoogleMap, LoadScript, Marker, InfoWindow } from '@react-google-maps/api';
 import {
   Box,
   Typography,
@@ -18,6 +19,7 @@ import {
   Chip,
   Button,
   IconButton,
+  Alert,
 } from '@mui/material';
 import {
   LocationOn as LocationIcon,
@@ -34,11 +36,26 @@ const colors = {
   veryLightBlue: '#E5F1F5',
 };
 
+// Google Maps API Key - Replace with your own API key
+// Get one from: https://console.cloud.google.com/google/maps-apis
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+
+// Default map center (Sri Lanka)
+const DEFAULT_CENTER = { lat: 7.8731, lng: 80.7718 };
+const DEFAULT_ZOOM = 7;
+
+// Map container style
+const mapContainerStyle = {
+  width: '100%',
+  height: '350px',
+};
+
 function LocationTracking() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [selectedLocation, setSelectedLocation] = useState(null);
 
   useEffect(() => {
     loadLocationData();
@@ -73,6 +90,26 @@ function LocationTracking() {
       setLoading(false);
     }
   };
+
+  // Calculate map center based on locations
+  const mapCenter = useMemo(() => {
+    const validLocations = locations.filter(loc => loc.latitude && loc.longitude);
+    if (validLocations.length === 0) {
+      return DEFAULT_CENTER;
+    }
+    
+    if (validLocations.length === 1) {
+      return { lat: validLocations[0].latitude, lng: validLocations[0].longitude };
+    }
+    
+    // Calculate center point of all locations
+    const avgLat = validLocations.reduce((sum, loc) => sum + loc.latitude, 0) / validLocations.length;
+    const avgLng = validLocations.reduce((sum, loc) => sum + loc.longitude, 0) / validLocations.length;
+    return { lat: avgLat, lng: avgLng };
+  }, [locations]);
+
+  // Filter valid locations for markers
+  const validLocations = locations.filter(loc => loc.latitude && loc.longitude);
 
   if (loading) {
     return (
@@ -236,28 +273,84 @@ function LocationTracking() {
           </Card>
         </Grid>
 
-        {/* Map Placeholder */}
+        {/* Location Map */}
         <Grid item xs={12}>
           <Card sx={{ borderRadius: 3, boxShadow: 2, height: 400 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
                 Location Map
               </Typography>
-              <Box
-                sx={{
-                  height: 350,
-                  bgcolor: colors.veryLightBlue,
-                  borderRadius: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  mt: 2,
-                }}
-              >
-                <Typography color="text.secondary">
-                  Map view will be displayed here (integrate with Google Maps or similar)
-                </Typography>
-              </Box>
+              {!GOOGLE_MAPS_API_KEY ? (
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                  Google Maps API key not configured. Please set VITE_GOOGLE_MAPS_API_KEY in your .env file.
+                  <br />
+                  Get your API key from: <a href="https://console.cloud.google.com/google/maps-apis" target="_blank" rel="noopener noreferrer">Google Cloud Console</a>
+                </Alert>
+              ) : (
+                <Box sx={{ mt: 2, borderRadius: 2, overflow: 'hidden' }}>
+                  <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY}>
+                    <GoogleMap
+                      mapContainerStyle={mapContainerStyle}
+                      center={mapCenter}
+                      zoom={validLocations.length > 1 ? 10 : 15}
+                    >
+                      {validLocations.map((location, index) => (
+                        <Marker
+                          key={location.user_id || index}
+                          position={{ lat: location.latitude, lng: location.longitude }}
+                          onClick={() => setSelectedLocation(location)}
+                          label={{
+                            text: location.username?.charAt(0).toUpperCase() || 'U',
+                            color: 'white',
+                            fontWeight: 'bold',
+                          }}
+                        />
+                      ))}
+                      {selectedLocation && (
+                        <InfoWindow
+                          position={{
+                            lat: selectedLocation.latitude,
+                            lng: selectedLocation.longitude,
+                          }}
+                          onCloseClick={() => setSelectedLocation(null)}
+                        >
+                          <div style={{ padding: '4px', minWidth: '200px' }}>
+                            <h3 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: 'bold' }}>
+                              {selectedLocation.username}
+                            </h3>
+                            <p style={{ margin: '4px 0', fontSize: '12px' }}>
+                              <strong>Phone:</strong> {selectedLocation.phone_number || 'N/A'}
+                            </p>
+                            <p style={{ margin: '4px 0', fontSize: '12px' }}>
+                              <strong>Email:</strong> {selectedLocation.email}
+                            </p>
+                            <p style={{ margin: '4px 0', fontSize: '12px' }}>
+                              <strong>Last Activity:</strong>{' '}
+                              {selectedLocation.last_activity
+                                ? new Date(selectedLocation.last_activity).toLocaleString()
+                                : 'N/A'}
+                            </p>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                marginTop: '4px',
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                backgroundColor: selectedLocation.status === 'online' ? '#4caf50' : '#9e9e9e',
+                                color: 'white',
+                                fontWeight: 'bold',
+                              }}
+                            >
+                              {selectedLocation.status}
+                            </span>
+                          </div>
+                        </InfoWindow>
+                      )}
+                    </GoogleMap>
+                  </LoadScript>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
