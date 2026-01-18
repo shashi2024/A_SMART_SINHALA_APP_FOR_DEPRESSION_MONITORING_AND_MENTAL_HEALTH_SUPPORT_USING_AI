@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../providers/call_provider.dart';
 import '../services/api_service.dart';
+import '../services/location_service.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'notification_screen.dart';
@@ -22,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _selectedMood;
   bool _isSavingMood = false;
   final ApiService _apiService = ApiService();
+  final LocationService _locationService = LocationService();
   final ScrollController _moodScrollController = ScrollController();
   bool _showLeftArrow = false;
   
@@ -38,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _moodScrollController.dispose();
+    _locationService.stopTracking();
     super.dispose();
   }
 
@@ -62,6 +65,38 @@ class _HomeScreenState extends State<HomeScreen> {
     
     // Load saved language preference
     _loadLanguagePreference();
+    
+    // Initialize location tracking after widget is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeLocationTracking();
+    });
+  }
+  
+  Future<void> _initializeLocationTracking() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    // Wait a bit for user data to be fully loaded
+    await Future.delayed(const Duration(seconds: 2));
+    
+    final user = authProvider.user;
+    final phoneNumber = user?.phoneNumber;
+    
+    if (phoneNumber != null && phoneNumber.isNotEmpty) {
+      try {
+        // Request location permission and start tracking
+        final hasPermission = await _locationService.requestPermission();
+        if (hasPermission) {
+          await _locationService.startTracking(phoneNumber: phoneNumber);
+          debugPrint('Location tracking started for: $phoneNumber');
+        } else {
+          debugPrint('Location permission not granted');
+        }
+      } catch (e) {
+        debugPrint('Failed to start location tracking: $e');
+      }
+    } else {
+      debugPrint('Phone number not available for location tracking. User phone: $phoneNumber');
+    }
   }
   
   Future<void> _loadLanguagePreference() async {
