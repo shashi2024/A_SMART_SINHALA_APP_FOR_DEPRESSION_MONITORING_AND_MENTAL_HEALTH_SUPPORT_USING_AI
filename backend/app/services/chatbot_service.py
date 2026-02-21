@@ -8,6 +8,8 @@ from typing import Dict, Optional, Tuple, List
 from app.services.phq9_service import PHQ9Service
 from app.services.chatbot_safety import ChatbotSafetyService
 from app.services.depression_detection import DepressionDetectionService
+from app.services.llm_service import LLMService
+import random
 
 class ChatbotService:
     """Enhanced chatbot service with safety and PHQ-9 support"""
@@ -159,6 +161,7 @@ class ChatbotService:
         self.phq9_service = PHQ9Service()
         self.safety_service = ChatbotSafetyService()
         self.depression_service = DepressionDetectionService()
+        self.llm_service = LLMService()
     
     def detect_language(self, text: str) -> str:
         """
@@ -254,6 +257,20 @@ class ChatbotService:
         
         # Get response template
         response = self.get_response_template(intent, language)
+        
+        # If intent is default (no specific pattern matched), try to use LLM for dynamic response
+        # 50% chance to use LLM, 50% chance to use script
+        if intent == 'default':
+            # Use LLM for dynamic response if available and appropriate
+            try:
+                # Get response from LLM
+                llm_response = await self.llm_service.generate_response(message, language)
+                if llm_response:
+                    response = llm_response
+            except Exception as e:
+                # Log error and fall back to template
+                print(f"LLM Error: {e}")
+                pass
         
         # Validate response safety
         is_safe, error = self.safety_service.validate_response(response, language)

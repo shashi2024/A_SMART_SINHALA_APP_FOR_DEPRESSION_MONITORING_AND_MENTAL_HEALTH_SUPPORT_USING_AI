@@ -47,28 +47,37 @@ async def create_mood_checkin(
     session_to_update = None
     
     if recent_sessions:
-        from datetime import timedelta
-        now = datetime.utcnow()
+        from datetime import timedelta, timezone
+        now = datetime.now(timezone.utc)
         two_hours_ago = now - timedelta(hours=2)
         
         # Helper function to parse datetime from various formats
         def parse_datetime(dt_value):
             if dt_value is None:
                 return None
+            
+            result = None
             if isinstance(dt_value, datetime):
-                return dt_value
+                result = dt_value
             # Handle Firestore Timestamp
-            if hasattr(dt_value, 'timestamp'):
+            elif hasattr(dt_value, 'timestamp'):
                 try:
-                    return datetime.fromtimestamp(dt_value.timestamp())
+                    result = datetime.fromtimestamp(dt_value.timestamp())
                 except:
                     pass
-            if isinstance(dt_value, str):
+            elif isinstance(dt_value, str):
                 try:
                     # Try ISO format
-                    return datetime.fromisoformat(dt_value.replace('Z', '+00:00'))
+                    result = datetime.fromisoformat(dt_value.replace('Z', '+00:00'))
                 except:
                     pass
+            
+            # Ensure timezone awareness for comparison
+            if result:
+                if result.tzinfo is None:
+                    from datetime import timezone
+                    result = result.replace(tzinfo=timezone.utc)
+                return result
             return None
         
         # Find the most recent session (prefer active ones without end_time, then most recent within 2 hours)
