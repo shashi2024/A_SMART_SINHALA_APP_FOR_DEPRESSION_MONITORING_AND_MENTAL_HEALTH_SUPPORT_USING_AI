@@ -21,7 +21,8 @@ class UserRegister(BaseModel):
     username: str
     email: EmailStr
     password: str
-    phone_number: Optional[str] = None
+    phone_number: str  # Made mandatory
+    twitter_username: Optional[str] = None
 
 class UserLogin(BaseModel):
     username: Optional[str] = None  # Can be username
@@ -138,9 +139,10 @@ async def register(user_data: UserRegister):
             'is_admin': False
         }
         
-        # Only add phone_number if provided
-        if user_data.phone_number:
-            user_data_dict['phone_number'] = user_data.phone_number
+        # Add phone_number and twitter_username
+        user_data_dict['phone_number'] = user_data.phone_number
+        if user_data.twitter_username:
+            user_data_dict['twitter_username'] = user_data.twitter_username
         
         user_id = firestore_service.create_user(user_data_dict)
         
@@ -267,6 +269,7 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
         "username": current_user.get('username'),
         "email": current_user.get('email'),
         "phone_number": current_user.get('phone_number'),
+        "twitter_username": current_user.get('twitter_username'),
         "is_admin": current_user.get('is_admin', False),
         "is_sub_admin": current_user.get('is_sub_admin', False),
         "role": current_user.get('role'),
