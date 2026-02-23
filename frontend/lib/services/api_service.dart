@@ -79,17 +79,19 @@ class ApiService {
   Future<Map<String, dynamic>> register(
     String username,
     String email,
-    String password, [
-    String? phoneNumber,
+    String password,
+    String phoneNumber, [
+    String? twitterUsername,
   ]) async {
     try {
       final body = {
         'username': username,
         'email': email,
         'password': password,
+        'phone_number': phoneNumber,
       };
-      if (phoneNumber != null && phoneNumber.isNotEmpty) {
-        body['phone_number'] = phoneNumber;
+      if (twitterUsername != null && twitterUsername.isNotEmpty) {
+        body['twitter_username'] = twitterUsername;
       }
       
       final response = await http.post(
