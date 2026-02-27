@@ -3,23 +3,29 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 
 class User {
-  final int id;
+  final String id;
   final String username;
   final String email;
+  final String? phoneNumber;
+  final String? twitterUsername;
   final bool isAdmin;
 
   User({
     required this.id,
     required this.username,
     required this.email,
+    this.phoneNumber,
+    this.twitterUsername,
     required this.isAdmin,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'],
-      username: json['username'],
-      email: json['email'],
+      id: json['id']?.toString() ?? '',
+      username: json['username'] ?? '',
+      email: json['email'] ?? '',
+      phoneNumber: json['phone_number'],
+      twitterUsername: json['twitter_username'],
       isAdmin: json['is_admin'] ?? false,
     );
   }
@@ -102,9 +108,11 @@ class AuthProvider with ChangeNotifier {
         // User info fetch failed, but login was successful
         // Create a minimal user object
         _user = User(
-          id: 0,
+          id: '',
           username: username,
           email: '',
+          phoneNumber: null,
+          twitterUsername: null,
           isAdmin: false,
         );
       }
@@ -118,9 +126,9 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> register(String username, String email, String password, [String? phoneNumber]) async {
+  Future<bool> register(String username, String email, String password, String phoneNumber, [String? twitterUsername]) async {
     try {
-      final response = await _apiService.register(username, email, password, phoneNumber);
+      final response = await _apiService.register(username, email, password, phoneNumber, twitterUsername);
       _token = response['access_token'];
       _apiService.setToken(_token!);
       
@@ -136,9 +144,11 @@ class AuthProvider with ChangeNotifier {
         // User info fetch failed, but registration was successful
         // Create a minimal user object
         _user = User(
-          id: 0,
+          id: '',
           username: username,
           email: email,
+          phoneNumber: phoneNumber,
+          twitterUsername: twitterUsername,
           isAdmin: false,
         );
       }

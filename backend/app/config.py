@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     VOICE_MODEL_PATH: str = "./models/voice_analysis"
     TYPING_MODEL_PATH: str = "./models/typing_analysis"
     DEPRESSION_MODEL_PATH: str = "./models/depression_detection"
+    TWITTER_MODEL_PATH: str = "./models/twitter_model"
     
     # Firebase settings
     FIREBASE_CREDENTIALS: str = os.getenv("FIREBASE_CREDENTIALS", "")
@@ -54,6 +55,8 @@ class Settings(BaseSettings):
     # Google APIs
     GOOGLE_SPEECH_API_KEY: str = os.getenv("GOOGLE_SPEECH_API_KEY", "")
     GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    X_BEARER_TOKEN: str = os.getenv("X_BEARER_TOKEN", "")
     
     # Rasa chatbot
     RASA_SERVER_URL: str = os.getenv("RASA_SERVER_URL", "http://localhost:5005")
