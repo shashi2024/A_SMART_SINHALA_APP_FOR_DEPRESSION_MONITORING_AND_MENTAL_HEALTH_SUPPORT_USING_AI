@@ -515,7 +515,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 gradient: RadialGradient(
                   colors: [
                     AppColors.veryLightBlue,
-                    AppColors.paleSageGreen.withValues(alpha: 0.3),
+                    AppColors.paleSageGreen.withOpacity(0.3),
                   ],
                 ),
               ),

@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     GOOGLE_SPEECH_API_KEY: str = os.getenv("GOOGLE_SPEECH_API_KEY", "")
     GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+
+    X_BEARER_TOKEN: str = os.getenv("X_BEARER_TOKEN", "")
+
     
     # Rasa chatbot
     RASA_SERVER_URL: str = os.getenv("RASA_SERVER_URL", "http://localhost:5005")
