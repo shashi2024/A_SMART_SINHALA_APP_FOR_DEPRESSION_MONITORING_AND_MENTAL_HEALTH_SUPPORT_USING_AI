@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
+import '../providers/call_provider.dart';
+import '../services/api_service.dart';
+import '../services/location_service.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
+import 'notification_screen.dart';
+import 'instructions_screen.dart';
 import 'login_screen.dart'; // For AppColors and logo
 
 class HomeScreen extends StatefulWidget {
@@ -15,20 +21,127 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   String? _selectedMood;
+  bool _isSavingMood = false;
+  final ApiService _apiService = ApiService();
+  final LocationService _locationService = LocationService();
+  final ScrollController _moodScrollController = ScrollController();
+  bool _showLeftArrow = false;
+  
+  // Language settings
+  String _selectedLanguage = 'en';
+  final Map<String, String> _languageNames = {
+    'en': 'English',
+    'si': 'සිංහල',
+    'ta': 'தமிழ்',
+  };
 
   final List<String> _moods = ['Excited', 'Happy', 'Calm', 'Neutral', 'Anxious', 'Sad'];
+
+  @override
+  void dispose() {
+    _moodScrollController.dispose();
+    _locationService.stopTracking();
+    super.dispose();
+  }
+
+  void _updateArrowVisibility() {
+    if (_moodScrollController.hasClients) {
+      final currentScroll = _moodScrollController.position.pixels;
+      setState(() {
+        _showLeftArrow = currentScroll > 0;
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Set API token from auth provider
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    _apiService.setToken(authProvider.token);
+    
+    // Listen to scroll changes to update arrow visibility
+    _moodScrollController.addListener(_updateArrowVisibility);
+    
+    // Load saved language preference
+    _loadLanguagePreference();
+    
+    // Initialize location tracking after widget is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeLocationTracking();
+    });
+  }
+  
+  Future<void> _initializeLocationTracking() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    // Wait a bit for user data to be fully loaded
+    await Future.delayed(const Duration(seconds: 2));
+    
+    final user = authProvider.user;
+    final phoneNumber = user?.phoneNumber;
+    
+    if (phoneNumber != null && phoneNumber.isNotEmpty) {
+      try {
+        // Request location permission and start tracking
+        final hasPermission = await _locationService.requestPermission();
+        if (hasPermission) {
+          await _locationService.startTracking(phoneNumber: phoneNumber);
+          debugPrint('Location tracking started for: $phoneNumber');
+        } else {
+          debugPrint('Location permission not granted');
+        }
+      } catch (e) {
+        debugPrint('Failed to start location tracking: $e');
+      }
+    } else {
+      debugPrint('Phone number not available for location tracking. User phone: $phoneNumber');
+    }
+  }
+  
+  Future<void> _loadLanguagePreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedLang = prefs.getString('app_language') ?? 'en';
+    setState(() {
+      _selectedLanguage = savedLang;
+    });
+    // Update CallProvider language
+    final callProvider = Provider.of<CallProvider>(context, listen: false);
+    callProvider.setLanguage(savedLang);
+  }
+  
+  Future<void> _setLanguage(String langCode) async {
+    setState(() {
+      _selectedLanguage = langCode;
+    });
+    // Save preference
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('app_language', langCode);
+    // Update CallProvider language
+    final callProvider = Provider.of<CallProvider>(context, listen: false);
+    callProvider.setLanguage(langCode);
+  }
 
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final username = authProvider.user?.username ?? 'User';
-    final firstName = username.split(' ').first;
+    // Extract name from email if username is an email, otherwise use the name part
+    String displayName = username;
+    if (username.contains('@')) {
+      displayName = username.split('@').first;
+    } else {
+      displayName = username.split(' ').first;
+    }
+    
+    // Update API token if it changed
+    _apiService.setToken(authProvider.token);
 
     return Scaffold(
       backgroundColor: AppColors.creamYellow,
       body: SafeArea(
         child: _selectedIndex == 0
-            ? _buildHomeContent(firstName)
+            ? _buildHomeContent(displayName)
             : _buildOtherScreen(),
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
@@ -41,6 +154,10 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header with greeting and language selector
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
           // Greeting Section
           Text(
             'Hi $firstName!',
@@ -49,6 +166,66 @@ class _HomeScreenState extends State<HomeScreen> {
               fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
+              ),
+              // Language selector
+              PopupMenuButton<String>(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.darkGreen.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.language, color: AppColors.darkGreen, size: 20),
+                      const SizedBox(width: 4),
+                      Text(
+                        _languageNames[_selectedLanguage] ?? 'EN',
+                        style: const TextStyle(
+                          color: AppColors.darkGreen,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                onSelected: _setLanguage,
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'en',
+                    child: Row(
+                      children: [
+                        Icon(Icons.check, color: _selectedLanguage == 'en' ? Colors.green : Colors.transparent, size: 20),
+                        const SizedBox(width: 8),
+                        const Text('English'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'si',
+                    child: Row(
+                      children: [
+                        Icon(Icons.check, color: _selectedLanguage == 'si' ? Colors.green : Colors.transparent, size: 20),
+                        const SizedBox(width: 8),
+                        const Text('සිංහල (Sinhala)'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'ta',
+                    child: Row(
+                      children: [
+                        Icon(Icons.check, color: _selectedLanguage == 'ta' ? Colors.green : Colors.transparent, size: 20),
+                        const SizedBox(width: 8),
+                        const Text('தமிழ் (Tamil)'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Text(
@@ -68,7 +245,9 @@ class _HomeScreenState extends State<HomeScreen> {
               SizedBox(
                 height: 50,
                 child: ListView.builder(
+                  controller: _moodScrollController,
                   scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
                   itemCount: _moods.length,
                   itemBuilder: (context, index) {
                     final mood = _moods[index];
@@ -79,10 +258,16 @@ class _HomeScreenState extends State<HomeScreen> {
                         right: index == _moods.length - 1 ? 40.0 : 12.0,
                       ),
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: _isSavingMood ? null : () async {
+                          final newMood = isSelected ? null : mood;
                           setState(() {
-                            _selectedMood = isSelected ? null : mood;
+                            _selectedMood = newMood;
                           });
+                          
+                          // Save mood to database if a mood is selected
+                          if (newMood != null) {
+                            await _saveMoodCheckIn(newMood);
+                          }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isSelected 
@@ -103,28 +288,93 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 ),
               ),
-              // Scroll indicator arrow on the right
+              // Scroll indicator arrow on the left (clickable) - only show when scrolled right
+              if (_showLeftArrow)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: GestureDetector(
+                    onTap: () {
+                      // Scroll to the left if we can
+                      if (_moodScrollController.hasClients) {
+                        final currentScroll = _moodScrollController.position.pixels;
+                        
+                        if (currentScroll > 0) {
+                          // Calculate scroll amount (150px back or to the start, whichever is larger)
+                          final scrollAmount = (currentScroll - 150).clamp(0.0, double.infinity);
+                          _moodScrollController.animateTo(
+                            scrollAmount,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        }
+                      }
+                    },
+                    child: Container(
+                      width: 40,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            AppColors.creamYellow,
+                            AppColors.creamYellow.withOpacity(0.8),
+                            AppColors.creamYellow.withOpacity(0.0),
+                          ],
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.chevron_left,
+                        color: Colors.grey[700],
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                ),
+              // Scroll indicator arrow on the right (clickable)
               Positioned(
                 right: 0,
                 top: 0,
                 bottom: 0,
-                child: Container(
-                  width: 30,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: [
-                        AppColors.creamYellow.withValues(alpha: 0.0),
-                        AppColors.creamYellow,
-                      ],
+                child: GestureDetector(
+                  onTap: () {
+                    // Scroll to the right if we can
+                    if (_moodScrollController.hasClients) {
+                      final maxScroll = _moodScrollController.position.maxScrollExtent;
+                      final currentScroll = _moodScrollController.position.pixels;
+                      
+                      if (currentScroll < maxScroll) {
+                        // Calculate scroll amount (150px or to the end, whichever is smaller)
+                        final scrollAmount = (currentScroll + 150).clamp(0.0, maxScroll);
+                        _moodScrollController.animateTo(
+                          scrollAmount,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      }
+                    }
+                  },
+                  child: Container(
+                    width: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          AppColors.creamYellow.withOpacity(0.0),
+                          AppColors.creamYellow.withOpacity(0.8),
+                          AppColors.creamYellow,
+                        ],
+                      ),
                     ),
-                  ),
-                  child: Icon(
-                    Icons.chevron_right,
-                    color: Colors.grey[600],
-                    size: 24,
+                    child: Icon(
+                      Icons.chevron_right,
+                      color: Colors.grey[700],
+                      size: 28,
+                    ),
                   ),
                 ),
               ),
@@ -145,7 +395,7 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'I\'m Finn.',
+                  'I\'m Sahana.',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
@@ -312,13 +562,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildOtherScreen() {
     if (_selectedIndex == 1) {
-      // Instructions screen (placeholder)
-      return const Center(
-        child: Text(
-          'Instructions',
-          style: TextStyle(fontSize: 24),
-        ),
-      );
+      // Instructions screen
+      return const InstructionsScreen();
     } else if (_selectedIndex == 2) {
       // Chatbot screen - navigate to chat route
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -327,15 +572,17 @@ class _HomeScreenState extends State<HomeScreen> {
           _selectedIndex = 0; // Reset to home after navigation
         });
       });
-      return _buildHomeContent(Provider.of<AuthProvider>(context).user?.username?.split(' ').first ?? 'User');
+      final username = Provider.of<AuthProvider>(context).user?.username ?? 'User';
+      String displayName = username;
+      if (username.contains('@')) {
+        displayName = username.split('@').first;
+      } else {
+        displayName = username.split(' ').first;
+      }
+      return _buildHomeContent(displayName);
     } else if (_selectedIndex == 3) {
-      // Notifications screen (placeholder)
-      return const Center(
-        child: Text(
-          'Notifications',
-          style: TextStyle(fontSize: 24),
-        ),
-      );
+      // Notifications screen
+      return const NotificationScreen();
     } else if (_selectedIndex == 4) {
       // Profile screen
       return const ProfileScreen();
@@ -439,6 +686,46 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _saveMoodCheckIn(String mood) async {
+    if (!mounted) return;
+    
+    setState(() {
+      _isSavingMood = true;
+    });
+
+    try {
+      await _apiService.createMoodCheckIn(mood);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Mood "$mood" saved successfully!'),
+            backgroundColor: AppColors.darkGreen,
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save mood: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingMood = false;
+        });
+      }
+    }
   }
 }
 

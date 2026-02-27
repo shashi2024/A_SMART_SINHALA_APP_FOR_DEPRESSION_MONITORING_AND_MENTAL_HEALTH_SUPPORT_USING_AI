@@ -55,7 +55,7 @@ async def predict_twitter_user(
     if "error" in result and result["error"] in ["Models not loaded"]:
         raise HTTPException(status_code=500, detail=result["error"])
     return result
-
+  
 @router.get("/status")
 async def get_twitter_service_status(
     current_user: dict = Depends(get_current_user)

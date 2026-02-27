@@ -40,6 +40,14 @@ class TwitterService:
     async def predict_depression(self, text: str) -> Dict[str, Any]:
         """
         Predicts depression level from a given piece of text.
+
+        
+        Args:
+            text (str): The text (tweet) to analyze.
+            
+        Returns:
+            Dict[str, Any]: Prediction result containing score and label.
+
         """
         if not self.model or not self.vectorizer:
             return {
@@ -55,15 +63,20 @@ class TwitterService:
             # Get prediction (assuming binary classification 0: not depressed, 1: depressed)
             prediction = self.model.predict(text_vectorized)[0]
             
+            # If the model supports probability estimates, get those as well
             score = 0.0
             if hasattr(self.model, "predict_proba"):
                 probabilities = self.model.predict_proba(text_vectorized)[0]
+                # Assuming index 1 is 'depressed'
                 score = float(probabilities[1])
             elif hasattr(self.model, "decision_function"):
-                import numpy as np
+                # For models like SGDClassifier that might not have predict_proba by default
                 decision = self.model.decision_function(text_vectorized)[0]
+                # Map decision function to a 0-1 score (sigmoid-like)
+                import numpy as np
                 score = float(1 / (1 + np.exp(-decision)))
             else:
+                # Fallback to binary prediction
                 score = 1.0 if prediction == 1 else 0.0
 
             return {

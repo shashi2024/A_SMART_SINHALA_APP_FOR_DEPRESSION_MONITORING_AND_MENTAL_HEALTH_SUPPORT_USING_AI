@@ -15,7 +15,9 @@ class ApiService {
   
   // For Web/Chrome - use localhost
   //static const String baseUrl = 'http://localhost:8000/api';
-  static const String baseUrl = 'http://10.0.2.2:8000/api';
+
+  static const String baseUrl = 'http://192.168.8.111:8000/api';
+
   
   // Uncomment and set your IP address for physical device or if localhost doesn't work:
   // static const String baseUrl = 'http://192.168.122.173:8000/api';

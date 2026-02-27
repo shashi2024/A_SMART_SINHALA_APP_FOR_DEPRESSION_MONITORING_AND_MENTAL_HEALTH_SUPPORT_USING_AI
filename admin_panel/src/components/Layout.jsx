@@ -48,7 +48,7 @@ function Layout() {
   const location = useLocation();
   const { logout, user, checkAdminStatus } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
-
+  
   // Fetch user info on mount
   useEffect(() => {
     if (!user) {
@@ -75,14 +75,13 @@ function Layout() {
 
     return () => clearInterval(interval);
   }, [user]);
-
+  
   // Refresh when navigating to/from notifications page
   useEffect(() => {
     if (location.pathname === '/notifications' || location.pathname === '/connect') {
       fetchNotificationCount();
     }
   }, [location.pathname]);
-
   const displayName = user?.username || user?.email?.split('@')[0] || 'Admin';
 
   // Build menu items based on user role
@@ -94,6 +93,7 @@ function Layout() {
     { text: 'Location track', icon: <TimelineIcon />, path: '/location-track' },
     { text: 'Digital twin', icon: <ChatBubbleIcon />, path: '/digital-twin' },
     { text: 'X (Twitter) Analysis', icon: <TwitterIcon />, path: '/twitter-analysis' },
+
     // Only show User Management for full admins (not sub-admins, doctors, or nurses)
     ...(user?.is_admin ? [{ text: 'User Management', icon: <PeopleIcon />, path: '/user-management' }] : []),
     { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },

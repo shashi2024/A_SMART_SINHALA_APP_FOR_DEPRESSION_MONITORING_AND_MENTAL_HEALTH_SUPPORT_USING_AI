@@ -14,7 +14,12 @@ import {
   CircularProgress,
   Tabs,
   Tab,
+  Button,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import WarningIcon from '@mui/icons-material/Warning';
 
 // Color palette
 const colors = {
@@ -73,6 +78,59 @@ function Alerts() {
         return 'Mid';
       default:
         return 'Low';
+    }
+  };
+
+  const handleResolveAlert = async (alertId) => {
+    try {
+      await api.post(`/admin/alerts/${alertId}/resolve`);
+      // Reload alerts after resolving
+      loadAlerts();
+    } catch (error) {
+      console.error('Failed to resolve alert:', error);
+      alert('Failed to resolve alert. Please try again.');
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getStatusChip = (isResolved, riskLevel) => {
+    if (isResolved) {
+      return (
+        <Chip
+          label="RESOLVED"
+          size="small"
+          icon={<CheckCircleIcon />}
+          sx={{
+            bgcolor: colors.darkGreen,
+            color: 'white',
+            fontWeight: 600,
+            borderRadius: 2,
+          }}
+        />
+      );
+    } else {
+      return (
+        <Chip
+          label={getRiskLabel(riskLevel || 'low')}
+          size="small"
+          icon={<WarningIcon />}
+          sx={{
+            bgcolor: getRiskColor(riskLevel || 'low'),
+            color: 'white',
+            fontWeight: 600,
+            borderRadius: 2,
+          }}
+        />
+      );
     }
   };
 
@@ -152,23 +210,61 @@ function Alerts() {
                     bgcolor: index % 2 === 0 ? colors.lightPink : 'white',
                   }}
                 >
-                  <TableCell>{alert.username || 'Pasindu Sandeep'}</TableCell>
-                  <TableCell>{alert.alert_type || alert.email || 'pasindusandeep@gmail.com'}</TableCell>
-                  <TableCell>{alert.message || '01'}</TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {alert.username || 'Unknown User'}
+                    </Typography>
+                  </TableCell>
                   <TableCell>
                     <Chip
-                      label={getRiskLabel(alert.risk_level || alert.severity) || 'Low'}
+                      label={alert.alert_type || 'Unknown'}
                       size="small"
                       sx={{
-                        bgcolor: getRiskColor(alert.risk_level || alert.severity),
+                        bgcolor: alert.alert_type === 'crisis' ? '#F44336' : '#FF9800',
                         color: 'white',
-                        fontWeight: 600,
-                        borderRadius: 2,
+                        fontWeight: 500,
+                        textTransform: 'capitalize',
                       }}
                     />
                   </TableCell>
                   <TableCell>
-                    {/* Actions column - empty for now */}
+                    <Typography variant="body2" sx={{ maxWidth: 300 }}>
+                      {alert.message || 'No message available'}
+                    </Typography>
+                    {alert.created_at && (
+                      <Typography variant="caption" sx={{ color: '#666', display: 'block', mt: 0.5 }}>
+                        {formatDate(alert.created_at)}
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {getStatusChip(alert.is_resolved, alert.risk_level || alert.severity)}
+                  </TableCell>
+                  <TableCell>
+                    {!alert.is_resolved && (
+                      <Tooltip title="Mark as resolved">
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => handleResolveAlert(alert.id)}
+                          sx={{
+                            color: colors.darkGreen,
+                            borderColor: colors.darkGreen,
+                            '&:hover': {
+                              borderColor: colors.darkGreen,
+                              bgcolor: colors.paleSageGreen,
+                            },
+                          }}
+                        >
+                          Resolve
+                        </Button>
+                      </Tooltip>
+                    )}
+                    {alert.is_resolved && (
+                      <Typography variant="caption" sx={{ color: '#666' }}>
+                        Resolved
+                      </Typography>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

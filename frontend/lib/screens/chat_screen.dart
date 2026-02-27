@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 import '../providers/chatbot_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/sensor_provider.dart';
+import '../providers/call_provider.dart';
 import '../services/typing_analyzer.dart';
 import 'login_screen.dart'; // For AppColors
+import 'call_screen_simple.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -98,7 +100,7 @@ class _ChatScreenState extends State<ChatScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Header with back button and title
+              // Header with back button, title, and call button
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                 child: Row(
@@ -119,6 +121,42 @@ class _ChatScreenState extends State<ChatScreen> {
                           color: Colors.grey[800],
                         ),
                       ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.phone,
+                        color: AppColors.darkGreen,
+                        size: 28,
+                      ),
+                      onPressed: () async {
+                        // Start AI practice call via API
+                        final callProvider = Provider.of<CallProvider>(context, listen: false);
+                        try {
+                          final callId = await callProvider.createCall(
+                            callType: CallType.aiPractice,
+                            language: callProvider.language,
+                          );
+                          if (mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CallScreenSimple(
+                              callId: callId,
+                                  callType: 'ai_practice',
+                              calleeName: 'Sahana',
+                            ),
+                          ),
+                        );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Failed to start call: $e')),
+                            );
+                          }
+                        }
+                      },
+                      tooltip: 'Start a call',
                     ),
                   ],
                 ),
@@ -173,7 +211,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                     IconButton(
                       icon: Icon(
-                        Icons.mic,
+                        Icons.send,
                         color: AppColors.darkGreen,
                         size: 28,
                       ),
