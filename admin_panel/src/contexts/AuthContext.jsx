@@ -10,17 +10,22 @@ export function useAuth() {
 export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const checkAdminStatus = async () => {
     try {
       const response = await api.get('/auth/me');
       const userInfo = response.data;
-      setIsAdmin(userInfo.is_admin === true);
-      return userInfo.is_admin === true;
+      // Allow both admin and sub-admin access
+      const hasAccess = userInfo.is_admin === true || userInfo.is_sub_admin === true;
+      setIsAdmin(hasAccess);
+      setUser(userInfo); // Store user info
+      return hasAccess;
     } catch (error) {
       console.error('Failed to check admin status:', error);
       setIsAdmin(false);
+      setUser(null);
       return false;
     }
   };
@@ -30,13 +35,13 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem('token');
     if (token) {
       api.setToken(token);
-      // Verify token is still valid and user is admin
+      // Verify token is still valid and user is admin/sub-admin
       checkAdminStatus()
-        .then((isAdmin) => {
-          if (isAdmin) {
+        .then((hasAccess) => {
+          if (hasAccess) {
             setIsAuthenticated(true);
           } else {
-            // Token exists but user is not admin or token is invalid
+            // Token exists but user is not admin/sub-admin or token is invalid
             localStorage.removeItem('token');
             api.setToken(null);
             setIsAuthenticated(false);
@@ -62,10 +67,10 @@ export function AuthProvider({ children }) {
     localStorage.setItem('token', token);
     api.setToken(token);
     setIsAuthenticated(true);
-    // Check admin status after login
-    const adminStatus = await checkAdminStatus();
-    if (!adminStatus) {
-      throw new Error('Access denied: Admin privileges required');
+    // Check admin/sub-admin status after login
+    const hasAccess = await checkAdminStatus();
+    if (!hasAccess) {
+      throw new Error('Access denied: Admin or sub-admin privileges required');
     }
   };
 
@@ -73,14 +78,18 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('token');
     api.setToken(null);
     setIsAuthenticated(false);
+    setUser(null);
+    setIsAdmin(false);
   };
 
   const value = {
     isAuthenticated,
     isAdmin,
+    user,
     loading,
     login,
     logout,
+    checkAdminStatus, // Export to refresh user info
   };
 
   return (

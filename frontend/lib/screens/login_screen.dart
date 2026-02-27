@@ -1,8 +1,10 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chatbot_provider.dart';
+import '../providers/call_provider.dart';
 
 // Color Palette Constants
 class AppColors {
@@ -66,9 +68,19 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     if (success) {
-      // Sync token to chatbot provider
+      // Mark that user has seen welcome screen
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('has_seen_welcome', true);
+      } catch (e) {
+        debugPrint('Error saving welcome flag: $e');
+      }
+      
+      // Sync token to chatbot provider and call provider
       if (authProvider.token != null) {
         chatbotProvider.setToken(authProvider.token);
+        final callProvider = Provider.of<CallProvider>(context, listen: false);
+        callProvider.setToken(authProvider.token);
       }
       
       // Navigate to home screen

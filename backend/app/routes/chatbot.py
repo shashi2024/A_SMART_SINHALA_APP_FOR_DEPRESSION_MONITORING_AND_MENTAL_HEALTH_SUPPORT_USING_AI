@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from app.routes.auth import get_current_user
+from app.routes.auth import get_current_user, get_current_user_optional
 from app.services.chatbot_service import ChatbotService
 from app.services.phq9_service import PHQ9Service
 from app.services.chatbot_safety import ChatbotSafetyService
@@ -23,6 +23,7 @@ class ChatMessage(BaseModel):
     message: str
     session_id: Optional[str] = None
     language: Optional[str] = None  # 'en', 'si', 'ta'
+    mood: Optional[str] = None  # Optional mood: 'Excited', 'Happy', 'Calm', 'Neutral', 'Anxious', 'Sad'
 
 class ChatResponse(BaseModel):
     response: str
@@ -33,9 +34,12 @@ class ChatResponse(BaseModel):
     needs_escalation: bool = False
     language: Optional[str] = None
     intent: Optional[str] = None
+    start_phq9: bool = False  # Flag to indicate PHQ-9 should be started
+    phq9_question: Optional[str] = None  # First PHQ-9 question if starting
 
 class PHQ9StartRequest(BaseModel):
     language: Optional[str] = 'en'
+    mood: Optional[str] = None  # Optional mood
 
 class PHQ9AnswerRequest(BaseModel):
     session_id: str
@@ -63,14 +67,24 @@ class PHQ9Result(BaseModel):
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     chat_message: ChatMessage,
-    current_user: dict = Depends(get_current_user)
+    current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
     """
     Send message to chatbot and get response
     Includes safety checks and depression detection
+    Supports both authenticated and anonymous users (for first-time users)
     """
     chatbot_service = ChatbotService()
-    user_id = current_user.get('id')
+    user_id = current_user.get('id') if current_user else None
+    
+    # Validate mood if provided
+    if chat_message.mood:
+        valid_moods = ['Excited', 'Happy', 'Calm', 'Neutral', 'Anxious', 'Sad']
+        if chat_message.mood not in valid_moods:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid mood. Must be one of: {', '.join(valid_moods)}"
+            )
     
     # Get or create session
     if chat_message.session_id:
@@ -78,14 +92,145 @@ async def chat(
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
         session_id = session['id']
+        session_type = session.get('session_type', 'chat')
+        
+        # Update session with mood if provided
+        if chat_message.mood:
+            firestore_service.update_session(session_id, {'mood': chat_message.mood})
     else:
-        session_id = firestore_service.create_session({
-            'user_id': user_id,
+        session_data = {
+            'user_id': user_id,  # Can be None for anonymous users
             'session_type': 'chat',
-            'language': chat_message.language or 'en'
-        })
+            'language': chat_message.language or 'en',
+            'is_anonymous': user_id is None  # Mark as anonymous session
+        }
+        # Add mood if provided
+        if chat_message.mood:
+            session_data['mood'] = chat_message.mood
+            
+        session_id = firestore_service.create_session(session_data)
         session = firestore_service.get_session_by_id(session_id)
+        session_type = 'chat'
     
+    # Check if this is a PHQ-9 session - if so, handle as PHQ-9 answer
+    if session_type == 'phq9':
+        phq9_service = PHQ9Service()
+        language = session.get('language') or chat_message.language or 'en'
+        # Ensure current_question is an int (Firestore might return string)
+        current_question = session.get('phq9_current_question', 1)
+        if isinstance(current_question, str):
+            try:
+                current_question = int(current_question)
+            except (ValueError, TypeError):
+                current_question = 1
+        if not isinstance(current_question, int) or current_question < 1 or current_question > 9:
+            current_question = 1
+        
+        # Parse answer
+        answer_score = phq9_service.parse_answer(chat_message.message)
+        if answer_score is None:
+            # If answer can't be parsed, return error message with current question and options
+            error_msg = {
+                'en': "I couldn't understand your answer. Please respond with a number (0-3) or the exact text option.",
+                'si': "මට ඔබේ පිළිතුර තේරුම් ගත නොහැකි විය. කරුණාකර අංකයක් (0-3) හෝ නිශ්චිත පෙළ විකල්පයක් සපයන්න.",
+                'ta': "உங்கள் பதிலை நான் புரிந்து கொள்ள முடியவில்லை. தயவுசெய்து எண் (0-3) அல்லது சரியான உரை விருப்பத்தை வழங்கவும்."
+            }
+            # Re-display current question with options
+            current_question_text = phq9_service.get_question(current_question, language)
+            return ChatResponse(
+                response=f"{error_msg.get(language, error_msg['en'])}\n\n{current_question_text}",
+                session_id=session_id,
+                language=language,
+                intent='phq9_error',
+                start_phq9=False,
+                phq9_question=current_question_text
+            )
+        
+        # Get existing answers - ensure keys are ints
+        answers_raw = session.get('phq9_answers', {})
+        answers = {}
+        for key, value in answers_raw.items():
+            # Convert string keys to int
+            try:
+                key_int = int(key) if isinstance(key, str) else key
+                answers[key_int] = value
+            except (ValueError, TypeError):
+                continue
+        # Add current answer
+        answers[current_question] = answer_score
+        
+        # Check if complete
+        if phq9_service.is_complete(answers):
+            # Calculate score and save
+            total_score = phq9_service.calculate_score(answers)
+            interpretation = phq9_service.interpret_score(total_score)
+            
+            # Update session with results
+            firestore_service.update_session(session_id, {
+                'phq9_answers': answers,
+                'phq9_score': total_score,
+                'phq9_severity': interpretation['severity'],
+                'phq9_risk_level': interpretation['risk_level'],
+                'phq9_completed_at': datetime.utcnow().isoformat(),
+                'depression_score': total_score / 27.0,  # Normalize to 0-1
+                'risk_level': interpretation['risk_level']
+            })
+            
+            # Create alert if needed
+            if interpretation['needs_escalation']:
+                message = f"PHQ-9 assessment completed with score {total_score}/27. Risk level: {interpretation['risk_level']}."
+                firestore_service.create_alert({
+                    'user_id': user_id,
+                    'session_id': session_id,
+                    'alert_type': 'phq9_high_score',
+                    'phq9_score': total_score,
+                    'risk_level': interpretation['risk_level'],
+                    'severity': interpretation['severity'],
+                    'message': message
+                })
+            
+            # Return completion message
+            completion_msg = {
+                'en': f"Thank you for completing the assessment. Your score is {total_score}/27. {interpretation['recommendation']}",
+                'si': f"ඇගයීම සම්පූර්ණ කිරීමට ස්තුතියි. ඔබේ ලකුණ {total_score}/27 කි. {interpretation.get('recommendation_si', interpretation['recommendation'])}",
+                'ta': f"மதிப்பீட்டை முடித்ததற்கு நன்றி. உங்கள் மதிப்பெண் {total_score}/27. {interpretation.get('recommendation_ta', interpretation['recommendation'])}"
+            }
+            
+            return ChatResponse(
+                response=completion_msg.get(language, completion_msg['en']),
+                session_id=session_id,
+                depression_score=total_score / 27.0,
+                risk_level=interpretation['risk_level'],
+                language=language,
+                intent='phq9_complete',
+                start_phq9=False
+            )
+        
+        # Get next question
+        next_question_num = phq9_service.get_next_question(current_question)
+        if next_question_num is None:
+            # All questions answered - this shouldn't happen if is_complete check worked
+            next_question_num = 9
+        
+        # Ensure answers dict and next_question_num are proper types for Firestore
+        # Firestore can handle int keys in dicts, but we'll ensure consistency
+        firestore_service.update_session(session_id, {
+            'phq9_answers': answers,
+            'phq9_current_question': int(next_question_num)  # Ensure it's an int
+        })
+        
+        next_question = phq9_service.get_question(next_question_num, language)
+        
+        return ChatResponse(
+            response=next_question,
+            session_id=session_id,
+            language=language,
+            intent='phq9_question',
+            start_phq9=False,
+            phq9_question=next_question
+        )
+    
+    # Regular chat flow
     # Get session context
     session_context = {
         'session_id': session_id,
@@ -101,6 +246,39 @@ async def chat(
         language=chat_message.language
     )
     
+    # Check if user wants to start PHQ-9
+    intent = result.get('intent')
+    language = result.get('language', 'en')
+    start_phq9 = False
+    phq9_question = None
+    phq9_session_id = session_id
+    
+    if intent == 'start_phq9':
+        # Start PHQ-9 questionnaire
+        phq9_service = PHQ9Service()
+        start_phq9 = True
+        
+        # Create or update session for PHQ-9
+        phq9_session_data = {
+            'user_id': user_id,  # Can be None for anonymous users
+            'session_type': 'phq9',
+            'language': language,
+            'phq9_answers': {},
+            'phq9_current_question': 1,
+            'is_anonymous': user_id is None
+        }
+        # Include mood if provided in the chat message
+        if chat_message.mood:
+            phq9_session_data['mood'] = chat_message.mood
+        
+        phq9_session_id = firestore_service.create_session(phq9_session_data)
+        
+        # Get first question
+        phq9_question = phq9_service.get_question(1, language)
+        
+        # Update response to include PHQ-9 question
+        result['response'] = f"{result['response']}\n\n{phq9_question}"
+    
     # Update session with latest data
     session_updates = {
         'depression_score': result.get('depression_score', 0),
@@ -108,30 +286,40 @@ async def chat(
         'last_message_time': datetime.utcnow().isoformat()
     }
     
-    # If crisis detected, create admin alert
-    if result.get('is_crisis') or result.get('needs_escalation'):
+    # If crisis detected, create admin alert (only for authenticated users)
+    if (result.get('is_crisis') or result.get('needs_escalation')) and user_id:
+        risk_level = result.get('risk_level', 'severe')
         firestore_service.create_alert({
             'user_id': user_id,
             'session_id': session_id,
             'alert_type': 'crisis' if result.get('is_crisis') else 'high_risk',
             'message': chat_message.message,
-            'risk_level': result.get('risk_level', 'severe'),
+            'risk_level': risk_level,
+            'severity': risk_level,  # Add severity field for consistency
             'depression_score': result.get('depression_score', 0)
         })
         session_updates['needs_escalation'] = True
         session_updates['escalated_at'] = datetime.utcnow().isoformat()
+    elif (result.get('is_crisis') or result.get('needs_escalation')) and not user_id:
+        # For anonymous users, still mark session but don't create alert
+        session_updates['needs_escalation'] = True
+        session_updates['escalated_at'] = datetime.utcnow().isoformat()
+        # Log crisis for anonymous user (could be stored separately if needed)
+        print(f"[WARNING] Crisis detected for anonymous user in session {session_id}")
     
     firestore_service.update_session(session_id, session_updates)
     
     return ChatResponse(
         response=result['response'],
-        session_id=session_id,
+        session_id=phq9_session_id if start_phq9 else session_id,
         depression_score=result.get('depression_score'),
         risk_level=result.get('risk_level'),
         is_crisis=result.get('is_crisis', False),
         needs_escalation=result.get('needs_escalation', False),
         language=result.get('language', 'en'),
-        intent=result.get('intent')
+        intent=result.get('intent'),
+        start_phq9=start_phq9,
+        phq9_question=phq9_question
     )
 
 # ========== PHQ-9 Endpoints ==========
@@ -145,18 +333,32 @@ async def start_phq9(
     Start PHQ-9 questionnaire
     Returns first question
     """
+    # Validate mood if provided
+    if request.mood:
+        valid_moods = ['Excited', 'Happy', 'Calm', 'Neutral', 'Anxious', 'Sad']
+        if request.mood not in valid_moods:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid mood. Must be one of: {', '.join(valid_moods)}"
+            )
+    
     phq9_service = PHQ9Service()
     user_id = current_user.get('id')
     language = request.language or 'en'
     
     # Create PHQ-9 session
-    session_id = firestore_service.create_session({
+    session_data = {
         'user_id': user_id,
         'session_type': 'phq9',
         'language': language,
         'phq9_answers': {},
         'phq9_current_question': 1
-    })
+    }
+    # Include mood if provided
+    if request.mood:
+        session_data['mood'] = request.mood
+    
+    session_id = firestore_service.create_session(session_data)
     
     # Get first question
     question = phq9_service.get_question(1, language)
@@ -229,13 +431,15 @@ async def answer_phq9_question(
         
         # Create alert if needed
         if interpretation['needs_escalation']:
+            message = f"PHQ-9 assessment completed with score {total_score}/27. Risk level: {interpretation['risk_level']}."
             firestore_service.create_alert({
                 'user_id': user_id,
                 'session_id': request.session_id,
                 'alert_type': 'phq9_high_score',
                 'phq9_score': total_score,
                 'risk_level': interpretation['risk_level'],
-                'severity': interpretation['severity']
+                'severity': interpretation.get('severity', interpretation['risk_level']),
+                'message': message
             })
         
         return PHQ9Response(
