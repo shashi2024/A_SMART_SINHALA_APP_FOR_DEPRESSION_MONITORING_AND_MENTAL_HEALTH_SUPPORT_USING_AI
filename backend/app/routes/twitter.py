@@ -39,6 +39,23 @@ async def analyze_twitter_batch(
     results = await twitter_service.analyze_batch(request.texts)
     return results
 
+class UsernameInput(BaseModel):
+    username: str
+
+@router.post("/predict")
+async def predict_twitter_user(
+    request: UsernameInput,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Predicts depression level for a specific Twitter user.
+    Requires authentication.
+    """
+    result = await twitter_service.predict_user_depression(request.username)
+    if "error" in result and result["error"] in ["Models not loaded"]:
+        raise HTTPException(status_code=500, detail=result["error"])
+    return result
+  
 @router.get("/status")
 async def get_twitter_service_status(
     current_user: dict = Depends(get_current_user)

@@ -40,12 +40,14 @@ class TwitterService:
     async def predict_depression(self, text: str) -> Dict[str, Any]:
         """
         Predicts depression level from a given piece of text.
+
         
         Args:
             text (str): The text (tweet) to analyze.
             
         Returns:
             Dict[str, Any]: Prediction result containing score and label.
+
         """
         if not self.model or not self.vectorizer:
             return {
@@ -96,3 +98,114 @@ class TwitterService:
         for text in texts:
             results.append(await self.predict_depression(text))
         return results
+
+    def clean_text(self, text: str) -> str:
+        text = text.lower()
+        import re
+        text = re.sub(r"http\S+", "", text)
+        text = re.sub(r"[^a-z\s]", "", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text
+
+    def get_user_posts(self, username: str):
+        import requests
+        try:
+            token = settings.X_BEARER_TOKEN
+            if not token:
+                raise ValueError("Missing bearer token. Set X_BEARER_TOKEN in the environment.")
+
+            clean_username = username.replace("@", "")
+
+            user_response = requests.get(
+                f"https://api.x.com/2/users/by/username/{clean_username}",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=30,
+            )
+            user_response.raise_for_status()
+
+            user_data = user_response.json().get("data")
+            if not user_data:
+                raise ValueError("User not found or API access restricted.")
+
+            user_id = user_data.get("id")
+            print(f"User ID for @{clean_username} is {user_id}")
+
+            tweets_response = requests.get(
+                f"https://api.x.com/2/users/{user_id}/tweets",
+                headers={"Authorization": f"Bearer {token}"},
+                params={
+                    "tweet.fields": "created_at,text,public_metrics",
+                    "max_results": 50,
+                },
+                timeout=30,
+            )
+            tweets_response.raise_for_status()
+            
+            response_json = tweets_response.json()
+            if "errors" in response_json:
+                print(f"Twitter API returned errors: {response_json['errors']}")
+            
+            # API returns 'data' array if tweets exist
+            return response_json.get("data")
+
+        except requests.exceptions.ConnectionError:
+            print("Connection Reset: Check your internet/VPN or verify your API Tier permissions.")
+        except requests.exceptions.HTTPError as exc:
+            error_body = exc.response.json() if exc.response is not None else str(exc)
+            print("API Error:", error_body)
+        except Exception as exc:
+            print("API Error:", str(exc))
+
+        return None
+
+    async def predict_user_depression(self, username: str) -> Dict[str, Any]:
+        """
+        Fetches tweets for a user and predicts overall depression level.
+        """
+        import numpy as np
+        if not self.model or not self.vectorizer:
+            return {"error": "Models not loaded"}
+            
+        tweets = self.get_user_posts(username)
+        if not tweets:
+            return {
+                "error": "No tweets found or API access restricted.",
+                "total_tweets": 0,
+                "depressed_tweets": 0,
+                "not_depressed_tweets": 0,
+                "depressed_percent": "0.00%",
+                "not_depressed_percent": "0.00%",
+                "cleaned_tweets": [],
+            }
+
+        cleaned_tweets = [self.clean_text(tweet.get("text", "")) for tweet in tweets]
+        cleaned_tweets = [text for text in cleaned_tweets if text]
+        if not cleaned_tweets:
+            return {
+                "error": "No valid tweet text found.",
+                "total_tweets": 0,
+                "depressed_tweets": 0,
+                "not_depressed_tweets": 0,
+                "depressed_percent": "0.00%",
+                "not_depressed_percent": "0.00%",
+                "cleaned_tweets": [],
+            }
+
+        X = self.vectorizer.transform(cleaned_tweets)
+        predictions = self.model.predict(X)
+
+        total_tweets = len(cleaned_tweets)
+        depressed_tweets = int(np.sum(predictions == 1))
+        not_depressed_tweets = int(np.sum(predictions == 0))
+
+        depressed_percent = (depressed_tweets / total_tweets) * 100
+        not_depressed_percent = (not_depressed_tweets / total_tweets) * 100
+
+        return {
+            "total_tweets": total_tweets,
+            "depressed_tweets": depressed_tweets,
+            "not_depressed_tweets": not_depressed_tweets,
+            "depressed_percent": f"{depressed_percent:.2f}%",
+            "not_depressed_percent": f"{not_depressed_percent:.2f}%",
+            "cleaned_tweets": cleaned_tweets,
+        }
