@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chatbot_provider.dart';
 import 'login_screen.dart'; // For AppColors
@@ -19,6 +20,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _twitterController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -30,6 +32,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _phoneController.dispose();
+    _twitterController.dispose();
     super.dispose();
   }
 
@@ -53,7 +56,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
         _usernameController.text.trim(),
         _emailController.text.trim(),
         _passwordController.text,
-        _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
+        _phoneController.text.trim(),
+        _twitterController.text.trim().isEmpty ? null : _twitterController.text.trim(),
       );
     } catch (e) {
       success = false;
@@ -66,6 +70,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
     });
 
     if (success) {
+      // Mark that user has seen welcome screen
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('has_seen_welcome', true);
+      } catch (e) {
+        debugPrint('Error saving welcome flag: $e');
+      }
+      
       // Sync token to chatbot provider
       if (authProvider.token != null) {
         chatbotProvider.setToken(authProvider.token);
@@ -238,9 +250,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 
                 const SizedBox(height: 20),
                 
-                // Phone Field (Optional)
+                // Phone Field
                 Text(
-                  'Mobile Number (Optional)',
+                  'Mobile Number',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -253,6 +265,42 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   keyboardType: TextInputType.phone,
                   decoration: InputDecoration(
                     hintText: 'Enter your mobile number',
+                    hintStyle: TextStyle(color: Colors.grey[400]),
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter your mobile number';
+                    }
+                    return null;
+                  },
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Twitter Username Field (Optional)
+                Text(
+                  'Twitter Username (Optional)',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[800],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _twitterController,
+                  decoration: InputDecoration(
+                    hintText: 'Enter your Twitter username (e.g., @username)',
                     hintStyle: TextStyle(color: Colors.grey[400]),
                     filled: true,
                     fillColor: Colors.grey[100],
@@ -467,7 +515,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 gradient: RadialGradient(
                   colors: [
                     AppColors.veryLightBlue,
-                    AppColors.paleSageGreen.withValues(alpha: 0.3),
+                    AppColors.paleSageGreen.withOpacity(0.3),
                   ],
                 ),
               ),
