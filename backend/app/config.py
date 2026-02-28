@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     TYPING_MODEL_PATH: str = "./models/typing_analysis"
     DEPRESSION_MODEL_PATH: str = "./models/depression_detection"
     TWITTER_MODEL_PATH: str = "./models/twitter_model"
+    STRESS_MODEL_PATH: str = "./models/keystroke_stress"
     
     # Firebase settings
     FIREBASE_CREDENTIALS: str = os.getenv("FIREBASE_CREDENTIALS", "")
