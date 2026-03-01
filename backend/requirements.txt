@@ -10,6 +10,7 @@ numpy>=1.26.0
 librosa==0.10.1
 soundfile==0.12.1
 scikit-learn>=1.4.0
+joblib>=1.4.0
 scipy==1.11.4
 tensorflow==2.15.0
 torch==2.1.0
