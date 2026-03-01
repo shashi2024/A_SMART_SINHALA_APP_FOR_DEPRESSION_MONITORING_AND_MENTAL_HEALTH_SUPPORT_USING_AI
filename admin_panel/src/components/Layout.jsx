@@ -24,6 +24,7 @@ import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
 import SettingsIcon from '@mui/icons-material/Settings';
 import PeopleIcon from '@mui/icons-material/People';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import TwitterIcon from '@mui/icons-material/Twitter';
 import SearchIcon from '@mui/icons-material/Search';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import FolderIcon from '@mui/icons-material/Folder';
@@ -74,14 +75,13 @@ function Layout() {
 
     return () => clearInterval(interval);
   }, [user]);
-
+  
   // Refresh when navigating to/from notifications page
   useEffect(() => {
     if (location.pathname === '/notifications' || location.pathname === '/connect') {
       fetchNotificationCount();
     }
   }, [location.pathname]);
-  
   const displayName = user?.username || user?.email?.split('@')[0] || 'Admin';
 
   // Build menu items based on user role
@@ -92,6 +92,8 @@ function Layout() {
     { text: 'Doctor Connect', icon: <ShoppingBagIcon />, path: '/connect' },
     { text: 'Location track', icon: <TimelineIcon />, path: '/location-track' },
     { text: 'Digital twin', icon: <ChatBubbleIcon />, path: '/digital-twin' },
+    { text: 'X (Twitter) Analysis', icon: <TwitterIcon />, path: '/twitter-analysis' },
+
     // Only show User Management for full admins (not sub-admins, doctors, or nurses)
     ...(user?.is_admin ? [{ text: 'User Management', icon: <PeopleIcon />, path: '/user-management' }] : []),
     { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
