@@ -80,6 +80,7 @@ class ChatbotProvider with ChangeNotifier {
 
   Future<void> sendMessage(
     String message, {
+    List<Map<String, dynamic>>? keystrokeEvents,
     Map<String, dynamic>? typingData,
     Map<String, dynamic>? sensorData,
   }) async {
@@ -112,11 +113,11 @@ class ChatbotProvider with ChangeNotifier {
         }
       }
       
-      // Send to API
       final response = await _apiService.sendChatMessage(
         message,
         sessionId: _currentSessionId,
         language: languageToUse,
+        keystrokeEvents: keystrokeEvents,
         typingData: typingData,
         sensorData: sensorData,
       );
