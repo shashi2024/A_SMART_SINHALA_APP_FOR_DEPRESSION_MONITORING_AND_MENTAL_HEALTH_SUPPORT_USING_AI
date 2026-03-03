@@ -67,7 +67,7 @@ function TwitterAnalysisRow({ user, onRiskCalculated }) {
             try {
                 const cleanUsername = displayUsername ? displayUsername.replace('@', '') : '';
                 if (!cleanUsername) {
-                    setError("No Twitter username registered");
+                    setError("No Twitter account");
                     setLoading(false);
                     if (onRiskCalculated) onRiskCalculated(false); // No username means no depression found
                     return;
@@ -104,13 +104,13 @@ function TwitterAnalysisRow({ user, onRiskCalculated }) {
                 <TableCell>{user.email || 'N/A'}</TableCell>
                 <TableCell>@{displayUsername?.replace('@', '')}</TableCell>
                 <TableCell>
-                    {loading ? <CircularProgress size={20} /> : error ? '0' : `${result.total_tweets}`}
+                    {loading ? <CircularProgress size={20} /> : error ? 'N/A' : `${result.total_tweets}`}
                 </TableCell>
                 <TableCell>
                     {loading ? (
                         <CircularProgress size={20} />
                     ) : error ? (
-                        <Chip label="Error" size="small" sx={{ bgcolor: '#eee', color: '#666', fontWeight: 600, borderRadius: 2 }} />
+                        <Chip label="No twitter account" size="small" sx={{ bgcolor: '#eee', color: '#666', fontWeight: 600, borderRadius: 2 }} />
                     ) : (
                         <Chip
                             label={isHighRisk ? `High (${result.depressed_percent})` : `Low (${result.depressed_percent})`}

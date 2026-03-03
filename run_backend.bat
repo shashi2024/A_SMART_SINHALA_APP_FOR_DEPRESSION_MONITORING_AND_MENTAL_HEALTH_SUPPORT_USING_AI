@@ -19,3 +19,6 @@ echo.
 python main.py
 pause
 
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
+
+Stop-Process -Id (Get-NetTCPConnection -LocalPort 8000).OwningProcess -Force

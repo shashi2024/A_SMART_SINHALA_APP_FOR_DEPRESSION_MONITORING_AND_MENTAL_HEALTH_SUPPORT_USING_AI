@@ -8,6 +8,7 @@ import numpy as np
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from app.services.firestore_service import FirestoreService
+from app.services.call_bot_detection import CallBotDetectionService
 
 class BatchFakeDetectionService:
     """Service for batch-based fake user detection"""
@@ -28,6 +29,9 @@ class BatchFakeDetectionService:
             {"start": 15, "end": 20, "name": "mid_batch"},
             {"start": 30, "end": 35, "name": "late_batch"}
         ]
+        
+        # Initialize call bot detection service
+        self.call_bot_service = CallBotDetectionService()
     
     def should_check_batch(self, current_count: int, batch_type: str = "typing") -> Optional[Dict[str, Any]]:
         """
@@ -159,14 +163,21 @@ class BatchFakeDetectionService:
             
             batch_analyses = sorted_analyses[batch_start_idx:batch_end_idx]
             
-            # Aggregate features from batch
+            # Use specific call bot detection model for each analysis if available
+            model_scores = []
+            for analysis in batch_analyses:
+                # If we have individual confidence scores from the model recorded earlier
+                if 'fake_confidence' in analysis:
+                    model_scores.append(analysis['fake_confidence'])
+            
+            # Aggregate features for rule-based refinement
             aggregated_features = self._aggregate_voice_features(batch_analyses)
             
-            # Analyze for fake patterns
-            fake_score = self._detect_fake_voice_patterns(aggregated_features)
+            # Calculate overall fake score combining batch statistics and model results
+            fake_score = self._detect_fake_voice_patterns(aggregated_features, model_scores)
             
             # Determine if fake
-            is_fake = fake_score >= 0.6
+            is_fake = fake_score >= 0.5  # Adjust threshold based on algorithm preference
             
             return {
                 "batch_name": batch_info["name"],
@@ -174,8 +185,7 @@ class BatchFakeDetectionService:
                 "calls_analyzed": len(batch_analyses),
                 "is_fake": is_fake,
                 "fake_score": float(fake_score),
-                "fake_confidence": float(fake_score),
-                "features": aggregated_features,
+                "avg_model_confidence": float(np.mean(model_scores)) if model_scores else 0.0,
                 "analysis_timestamp": datetime.utcnow().isoformat()
             }
         
@@ -313,30 +323,39 @@ class BatchFakeDetectionService:
         
         return min(1.0, fake_score)
     
-    def _detect_fake_voice_patterns(self, features: Dict[str, Any]) -> float:
+    def _detect_fake_voice_patterns(self, features: Dict[str, Any], model_scores: List[float] = None) -> float:
         """
         Detect fake voice patterns from aggregated features
-        Returns fake score (0-1)
+        Combines batch statistics with pre-calculated model scores
         """
-        fake_score = 0.0
+        # If we have model scores, use them as the primary weight
+        if model_scores and len(model_scores) > 0:
+            base_score = np.mean(model_scores)
+        else:
+            base_score = 0.0
+            
+        heuristic_score = 0.0
         
         # 1. Too consistent pitch (synthetic voice)
         if features["pitch_consistency"] > 0.9:
-            fake_score += 0.3
+            heuristic_score += 0.2
         
         # 2. Too consistent energy (synthetic voice)
         if features["energy_consistency"] > 0.85:
-            fake_score += 0.25
+            heuristic_score += 0.2
         
         # 3. Very low pitch variance
         if features["pitch_variance"] < 10:
-            fake_score += 0.2
-        
-        # 4. High fake confidence from individual analyses
-        if features["avg_fake_confidence"] > 0.5:
-            fake_score += 0.25
-        
-        return min(1.0, fake_score)
+            heuristic_score += 0.1
+            
+        # Combine model score with heuristics (Weighted)
+        # 70% model, 30% batch heuristics
+        if base_score > 0:
+            final_score = (base_score * 0.7) + (min(1.0, heuristic_score) * 0.3)
+        else:
+            final_score = min(1.0, heuristic_score)
+            
+        return float(final_score)
     
     def _get_timestamp(self, timestamp_value) -> datetime:
         """Convert various timestamp formats to datetime"""
