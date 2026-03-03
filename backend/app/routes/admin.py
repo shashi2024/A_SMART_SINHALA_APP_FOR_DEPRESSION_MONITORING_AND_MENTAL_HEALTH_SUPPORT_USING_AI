@@ -10,6 +10,7 @@ from firebase_admin import firestore
 
 from app.routes.auth import get_current_user
 from app.services.firestore_service import FirestoreService
+from app.services.batch_fake_detection import BatchFakeDetectionService
 
 router = APIRouter()
 firestore_service = FirestoreService()
@@ -63,6 +64,9 @@ async def get_dashboard(
     
     try:
         from datetime import datetime, timedelta
+        
+        # Initialize services
+        batch_fake_service = BatchFakeDetectionService()
         
         # Get all active users
         all_users = firestore_service.get_all_active_users()
@@ -209,8 +213,29 @@ async def get_dashboard(
                     "total_mood_checkins": stats.get('total_mood_checkins', 0),
                     "average_depression_score": stats.get('average_depression_score', 0),
                     "risk_level": stats.get('risk_level', 'low'),
+                    "is_fake": False,  # Default
+                    "fake_score": 0.0, # Default
                     "last_activity": stats.get('last_activity')
                 })
+                
+                # Check for fake status (async check)
+                try:
+                    # Get typing batch status
+                    typing_status = await batch_fake_service.get_user_batch_status(user_id, "typing")
+                    is_fake = typing_status.get('overall_assessment', {}).get('is_fake', False)
+                    fake_score = typing_status.get('overall_assessment', {}).get('avg_fake_score', 0.0)
+                    
+                    # Also check voice if typing is not fake
+                    if not is_fake:
+                        voice_status = await batch_fake_service.get_user_batch_status(user_id, "voice")
+                        is_fake = voice_status.get('overall_assessment', {}).get('is_fake', False)
+                        fake_score = max(fake_score, voice_status.get('overall_assessment', {}).get('avg_fake_score', 0.0))
+                    
+                    # Update the last added entry
+                    dashboard_data[-1]["is_fake"] = is_fake
+                    dashboard_data[-1]["fake_score"] = fake_score
+                except Exception as fe:
+                    print(f"[WARNING] Fake detection failed for user {user_id}: {fe}")
             except Exception as e:
                 print(f"[ERROR] Error processing user {user.get('username', 'Unknown')}: {e}")
                 import traceback
@@ -990,6 +1015,7 @@ async def get_all_patients(
         raise HTTPException(status_code=403, detail="Only admins, nurses, and doctors can view patients")
     
     try:
+        batch_fake_service = BatchFakeDetectionService()
         users_ref = firestore_service.db.collection('users')
         patients = []
         
@@ -1027,6 +1053,25 @@ async def get_all_patients(
                 
                 user_data['assigned_doctor'] = assigned_doctor
                 user_data['assigned_nurse'] = assigned_nurse
+                
+                # Check for fake status
+                try:
+                    typing_status = await batch_fake_service.get_user_batch_status(doc.id, "typing")
+                    is_fake = typing_status.get('overall_assessment', {}).get('is_fake', False)
+                    fake_score = typing_status.get('overall_assessment', {}).get('avg_fake_score', 0.0)
+                    
+                    if not is_fake:
+                        voice_status = await batch_fake_service.get_user_batch_status(doc.id, "voice")
+                        is_fake = voice_status.get('overall_assessment', {}).get('is_fake', False)
+                        fake_score = max(fake_score, voice_status.get('overall_assessment', {}).get('avg_fake_score', 0.0))
+                    
+                    user_data['is_fake'] = is_fake
+                    user_data['fake_score'] = fake_score
+                except Exception as fe:
+                    print(f"[WARNING] Fake detection failed for user {doc.id}: {fe}")
+                    user_data['is_fake'] = False
+                    user_data['fake_score'] = 0.0
+                
                 patients.append(user_data)
         
         return {"patients": patients}

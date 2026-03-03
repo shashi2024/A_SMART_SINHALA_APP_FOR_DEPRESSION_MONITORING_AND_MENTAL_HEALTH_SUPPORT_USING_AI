@@ -140,6 +140,7 @@ class ApiService {
     String message, {
     String? sessionId,
     String? language,
+    List<Map<String, dynamic>>? keystrokeEvents,
     Map<String, dynamic>? typingData,
     Map<String, dynamic>? sensorData,
   }) async {
@@ -147,6 +148,7 @@ class ApiService {
       'message': message,
       if (sessionId != null) 'session_id': sessionId,
       if (language != null) 'language': language,
+      if (keystrokeEvents != null) 'keystroke_events': keystrokeEvents,
     };
 
     final response = await http.post(

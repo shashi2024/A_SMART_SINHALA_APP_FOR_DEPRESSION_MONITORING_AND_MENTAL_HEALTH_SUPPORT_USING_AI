@@ -18,7 +18,7 @@ from app.services.firebase_service import initialize_firebase
 # This ensures Firebase is ready when routes are imported
 initialize_firebase()
 
-from app.routes import auth, chatbot, voice, typing, admin, digital_twin, calls, mood, sessions, location, twitter, stress
+from app.routes import auth, chatbot, voice, typing, admin, digital_twin, calls, mood, sessions, location, twitter, stress, endpoints
 
 app = FastAPI(
     title="Depression Monitoring API",
@@ -48,6 +48,7 @@ app.include_router(sessions.router, prefix="/api/sessions", tags=["Sessions"])
 app.include_router(location.router, prefix="/api/location", tags=["Location Tracking"])
 app.include_router(twitter.router, prefix="/api/twitter", tags=["Twitter Analysis"])
 app.include_router(stress.router, prefix="/api/stress", tags=["Keystroke Stress Detection"])
+app.include_router(endpoints.router)
 
 @app.on_event("startup")
 async def startup_event():

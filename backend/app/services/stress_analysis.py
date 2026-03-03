@@ -184,3 +184,15 @@ class StressAnalysisService:
             "feature_snapshot":     feature_snapshot,
             "warning":              warning,
         }
+
+    def get_translated_risk_level(self, risk_level: str, language: str) -> str:
+        """Get translated risk level label."""
+        translations = {
+            "en": {"low": "Low", "medium": "Moderate", "high": "High"},
+            "si": {"low": "අඩු", "medium": "මධ්‍යම", "high": "වැඩි"},
+            "ta": {"low": "குறைந்த", "medium": "மிதமான", "high": "அதிக"}
+        }
+        lang = language.lower()[:2]
+        if lang not in translations:
+            lang = "en"
+        return translations[lang].get(risk_level.lower(), risk_level)

@@ -21,6 +21,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final TypingAnalyzer _typingAnalyzer = TypingAnalyzer();
   bool _hasStartedChat = false;
+  String _lastText = "";
 
   @override
   void initState() {
@@ -66,9 +67,12 @@ class _ChatScreenState extends State<ChatScreen> {
     // Send message with typing and sensor data
     await chatbotProvider.sendMessage(
       _messageController.text,
+      keystrokeEvents: (typingData['keystroke_events'] as List?)?.cast<Map<String, dynamic>>(),
       typingData: typingData,
       sensorData: sensorData,
     );
+    
+    _lastText = ""; // Reset last text after sending
 
     _messageController.clear();
     _typingAnalyzer.reset();
@@ -206,6 +210,14 @@ class _ChatScreenState extends State<ChatScreen> {
                             vertical: 16.0,
                           ),
                         ),
+                        onChanged: (text) {
+                          bool isBackspace = text.length < _lastText.length;
+                          _typingAnalyzer.recordKeystrokeWithDetails(
+                            isBackspace ? 'Backspace' : (text.isNotEmpty ? text[text.length - 1] : 'key'),
+                            isBackspace: isBackspace,
+                          );
+                          _lastText = text;
+                        },
                         onSubmitted: (_) => _sendMessage(),
                       ),
                     ),
