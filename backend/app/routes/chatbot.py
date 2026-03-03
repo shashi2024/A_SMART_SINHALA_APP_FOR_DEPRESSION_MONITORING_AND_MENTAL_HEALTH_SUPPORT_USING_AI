@@ -10,6 +10,7 @@ from datetime import datetime
 from app.routes.auth import get_current_user, get_current_user_optional
 from app.services.chatbot_service import ChatbotService
 from app.services.phq9_service import PHQ9Service
+from app.services.stress_analysis import StressAnalysisService
 from app.services.chatbot_safety import ChatbotSafetyService
 from app.services.depression_detection import DepressionDetectionService
 from app.services.firestore_service import FirestoreService
@@ -24,6 +25,7 @@ class ChatMessage(BaseModel):
     session_id: Optional[str] = None
     language: Optional[str] = None  # 'en', 'si', 'ta'
     mood: Optional[str] = None  # Optional mood: 'Excited', 'Happy', 'Calm', 'Neutral', 'Anxious', 'Sad'
+    keystroke_events: Optional[List[Dict[str, Any]]] = None  # List of keystroke timing data
 
 class ChatResponse(BaseModel):
     response: str
@@ -111,6 +113,32 @@ async def chat(
         session_id = firestore_service.create_session(session_data)
         session = firestore_service.get_session_by_id(session_id)
         session_type = 'chat'
+    
+    # Track message count and keystroke data for stress analysis
+    message_count = session.get('message_count', 0) + 1
+    pending_events = session.get('pending_keystroke_events', [])
+    if chat_message.keystroke_events:
+        pending_events.extend(chat_message.keystroke_events)
+    
+    # Initialize stress analysis service
+    stress_service = StressAnalysisService()
+    stress_result = None
+    
+    # Check if we should analyze stress (every 5 messages)
+    if message_count % 5 == 0 and pending_events:
+        try:
+            stress_result = stress_service.predict(pending_events)
+            # Clear pending events after analysis
+            pending_events = []
+        except Exception as e:
+            print(f"[ERROR] Stress analysis failed: {e}")
+            stress_result = None
+    
+    # Update session with count and events
+    firestore_service.update_session(session_id, {
+        'message_count': message_count,
+        'pending_keystroke_events': pending_events
+    })
     
     # Check if this is a PHQ-9 session - if so, handle as PHQ-9 answer
     if session_type == 'phq9':
@@ -285,6 +313,21 @@ async def chat(
         'risk_level': result.get('risk_level', 'low'),
         'last_message_time': datetime.utcnow().isoformat()
     }
+    
+    # Integrate stress analysis results
+    if stress_result:
+        stress_risk = stress_result.get('stress_level', 'low')
+        # Map stress level to combined risk level if needed
+        # For simplicity, we can update the risk_level if stress is high
+        if stress_risk == 'high':
+            session_updates['risk_level'] = 'high'
+        
+        # Translate risk level for user feedback if needed
+        lang = result.get('language', 'en')
+        translated_risk = stress_service.get_translated_risk_level(session_updates['risk_level'], lang)
+        
+        # We could add an automated message about stress level if desired
+        # result['response'] = f"{result['response']}\n\n[System] Current Stress Level: {translated_risk}"
     
     # If crisis detected, create admin alert (only for authenticated users)
     if (result.get('is_crisis') or result.get('needs_escalation')) and user_id:

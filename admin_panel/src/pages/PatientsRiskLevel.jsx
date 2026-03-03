@@ -81,6 +81,26 @@ function PatientsRiskLevel() {
     }
   };
 
+  const getFakeStatusChip = (score) => {
+    const percentage = (score * 100).toFixed(1);
+    const isHighRisk = score >= 0.6;
+
+    return (
+      <Chip
+        label={`${percentage}%`}
+        size="small"
+        sx={{
+          bgcolor: isHighRisk ? colors.red : colors.darkGreen,
+          color: 'white',
+          fontWeight: 600,
+          borderRadius: 2,
+          minWidth: '60px'
+        }}
+        title={isHighRisk ? "High likelihood of fake user" : "Likely authentic user"}
+      />
+    );
+  };
+
   // Calculate statistics
   const totalUsers = users.length;
   const highRiskUsers = users.filter((u) => u.risk_level === 'high' || u.risk_level === 'severe').length;
@@ -219,6 +239,7 @@ function PatientsRiskLevel() {
               <TableCell sx={{ fontWeight: 'bold' }}>Email</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>Total Sessions</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>Risk Level</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>Fake Status</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>Last Activity</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>Actions</TableCell>
             </TableRow>
@@ -254,6 +275,9 @@ function PatientsRiskLevel() {
                         borderRadius: 2,
                       }}
                     />
+                  </TableCell>
+                  <TableCell>
+                    {getFakeStatusChip(user.fake_score || 0)}
                   </TableCell>
                   <TableCell>
                     {user.last_activity
