@@ -11,6 +11,7 @@ from firebase_admin import firestore
 from app.routes.auth import get_current_user
 from app.services.firestore_service import FirestoreService
 from app.services.batch_fake_detection import BatchFakeDetectionService
+from app.services.phq9_service import PHQ9Service
 
 router = APIRouter()
 firestore_service = FirestoreService()
@@ -106,104 +107,67 @@ async def get_dashboard(
         for user in users:
             try:
                 user_id = user.get('id')
-                if not user_id:
-                    print(f"[WARNING] User missing ID: {user.get('username', 'Unknown')}")
-                    continue
+                if not user_id: continue
                 
-                # Get user statistics with error handling
-                try:
-                    stats = firestore_service.get_user_statistics(user_id)
-                except Exception as e:
-                    print(f"[ERROR] Failed to get statistics for user {user_id}: {e}")
-                    stats = {
-                        'total_sessions': 0,
-                        'average_depression_score': 0,
-                        'risk_level': 'low',
-                        'last_activity': user.get('created_at')
-                    }
+                # Use optimized statistics (this now fetches sessions and mood check-ins only once internally)
+                stats = firestore_service.get_user_statistics(user_id)
                 
-                # Count sessions
-                user_sessions = stats.get('total_sessions', 0)
-                total_sessions += user_sessions
+                # Update global counters from stats
+                total_sessions += stats.get('total_sessions', 0)
+                video_consultations += stats.get('video_consultations', 0)
+                clinic_consultations += stats.get('clinic_consultations', 0)
                 
-                # Get user sessions for today and type analysis
-                sessions = firestore_service.get_user_sessions(user_id)
-                for session in sessions:
-                    session_type = session.get('session_type', 'chatbot')
-                    if session_type in ['voice', 'video', 'call']:
-                        video_consultations += 1
-                    elif session_type in ['clinic', 'in-person']:
-                        clinic_consultations += 1
-                    
-                    # Check if session is today
+                # Today's appointments (sessions already returned in stats)
+                for session in stats.get('sessions', []):
                     start_time = session.get('start_time')
                     if start_time:
-                        session_date = None
-                        time_str = 'N/A'
-                        
-                        # Handle Firestore Timestamp objects
+                        dt = None
                         if hasattr(start_time, 'timestamp'):
-                            try:
-                                dt = datetime.fromtimestamp(start_time.timestamp())
-                                session_date = dt.date()
-                                time_str = dt.strftime('%H:%M')
-                            except:
-                                pass
+                            try: dt = datetime.fromtimestamp(start_time.timestamp())
+                            except: pass
                         elif isinstance(start_time, datetime):
-                            session_date = start_time.date()
-                            time_str = start_time.strftime('%H:%M')
+                            dt = start_time
                         elif isinstance(start_time, str):
-                            try:
-                                dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-                                session_date = dt.date()
-                                time_str = dt.strftime('%H:%M')
-                            except:
-                                pass
+                            try: dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                            except: pass
                         
-                        if session_date and session_date == today:
+                        if dt and dt.date() == today:
                             today_appointments.append({
                                 "user_id": user_id,
                                 "username": user.get('username', 'Unknown'),
-                                "type": session_type.replace('_', ' ').title(),
-                                "time": time_str,
+                                "type": session.get('session_type', 'chatbot').replace('_', ' ').title(),
+                                "time": dt.strftime('%H:%M'),
                                 "status": "Ongoing" if not session.get('end_time') else "Completed"
                             })
                 
-                # Demographics (estimate from username/email or default)
-                # In a real app, you'd have gender field
-                # For now, distribute evenly
-                if user_id:
-                    hash_val = hash(user_id) % 3
-                    if hash_val == 0:
-                        male_count += 1
-                    elif hash_val == 1:
-                        female_count += 1
-                    else:
-                        other_count += 1
+                # Demographics
+                gender = user.get('gender', 'other') # Use real field if exists
+                if gender == 'male': male_count += 1
+                elif gender == 'female': female_count += 1
+                else: other_count += 1 # Default or use hash-based distribution if no data
                 
-                # New vs old patients
+                # New vs old
                 created_at = user.get('created_at')
                 user_created = datetime.utcnow()
-                
                 if created_at:
-                    # Handle Firestore Timestamp objects
-                    if hasattr(created_at, 'timestamp'):
-                        try:
-                            user_created = datetime.fromtimestamp(created_at.timestamp())
-                        except:
-                            pass
-                    elif isinstance(created_at, datetime):
-                        user_created = created_at
+                    if hasattr(created_at, 'timestamp'): 
+                        try: user_created = datetime.fromtimestamp(created_at.timestamp())
+                        except: pass
+                    elif isinstance(created_at, datetime): user_created = created_at
                     elif isinstance(created_at, str):
-                        try:
-                            user_created = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                        except:
-                            pass
+                        try: user_created = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                        except: pass
                 
-                if user_created >= thirty_days_ago:
-                    new_patients += 1
-                else:
-                    old_patients += 1
+                if user_created >= thirty_days_ago: new_patients += 1
+                else: old_patients += 1
+                
+                # USE CACHED FAKE STATUS
+                cached_fake = user.get('fake_status', {})
+                is_fake = cached_fake.get('is_fake', False)
+                fake_score = cached_fake.get('fake_score', 0.0)
+                
+                # If fake_status is missing or older than 24h, we COULD trigger a background update
+                # But for the dashboard load, we use what we have
                 
                 dashboard_data.append({
                     "user_id": user_id,
@@ -213,29 +177,22 @@ async def get_dashboard(
                     "total_mood_checkins": stats.get('total_mood_checkins', 0),
                     "average_depression_score": stats.get('average_depression_score', 0),
                     "risk_level": stats.get('risk_level', 'low'),
-                    "is_fake": False,  # Default
-                    "fake_score": 0.0, # Default
+                    "phq9_score": stats.get('phq9_score'),
+                    "phq9_severity": stats.get('phq9_severity'),
+                    "is_fake": is_fake,
+                    "fake_score": fake_score,
                     "last_activity": stats.get('last_activity')
                 })
                 
-                # Check for fake status (async check)
-                try:
-                    # Get typing batch status
-                    typing_status = await batch_fake_service.get_user_batch_status(user_id, "typing")
-                    is_fake = typing_status.get('overall_assessment', {}).get('is_fake', False)
-                    fake_score = typing_status.get('overall_assessment', {}).get('avg_fake_score', 0.0)
-                    
-                    # Also check voice if typing is not fake
-                    if not is_fake:
-                        voice_status = await batch_fake_service.get_user_batch_status(user_id, "voice")
-                        is_fake = voice_status.get('overall_assessment', {}).get('is_fake', False)
-                        fake_score = max(fake_score, voice_status.get('overall_assessment', {}).get('avg_fake_score', 0.0))
-                    
-                    # Update the last added entry
-                    dashboard_data[-1]["is_fake"] = is_fake
-                    dashboard_data[-1]["fake_score"] = fake_score
-                except Exception as fe:
-                    print(f"[WARNING] Fake detection failed for user {user_id}: {fe}")
+                # Background task to update fake status if missing
+                if not cached_fake and user_id:
+                    # In a real FastAPI app, we'd use BackgroundTasks
+                    # For now, we'll just log that it needs an update or do it for the next time
+                    pass
+
+            except Exception as e:
+                print(f"[ERROR] Error processing user {user.get('username', 'Unknown')}: {e}")
+                continue
             except Exception as e:
                 print(f"[ERROR] Error processing user {user.get('username', 'Unknown')}: {e}")
                 import traceback
@@ -446,10 +403,17 @@ async def get_user_profile(
                             pass
                         break
         
+        dt = parse_datetime(session.get('start_time'))
+        start_time_iso = None
+        if dt:
+            start_time_iso = dt.isoformat()
+            if not start_time_iso.endswith('Z') and '+' not in start_time_iso:
+                start_time_iso += 'Z'
+        
         sessions_with_mood.append({
             "id": session_id,
             "type": session.get('session_type'),
-            "start_time": session.get('start_time'),
+            "start_time": start_time_iso,
             "depression_score": session.get('depression_score'),
             "risk_level": session.get('risk_level'),
             "mood": session_mood  # Include mood from session or matched check-in
@@ -480,20 +444,101 @@ async def get_user_profile(
             "recent_mood_checkins": stats.get('recent_mood_checkins', 0),
             "average_depression_score": stats.get('average_depression_score', 0),
             "risk_level": stats.get('risk_level', 'low'),
-            "last_activity": stats.get('last_activity')
+            "last_activity": stats.get('last_activity') # Already formatted in firestore_service
         },
         "digital_twin": digital_twin_data,
         "sessions": sessions_with_mood,
+        "biofeedback": firestore_service.get_user_biofeedback_analyses(user_id, limit=1),
         "mood_checkins": [
             {
                 "id": m.get('id'),
                 "mood": m.get('mood'),
                 "notes": m.get('notes'),
-                "created_at": m.get('created_at'),
+                "created_at": parse_datetime(m.get('created_at')).isoformat() if m.get('created_at') else None,
                 "date": m.get('date')
             }
             for m in mood_checkins[:50]  # Return most recent 50
         ]
+    }
+
+@router.get("/user/{user_id}/diagnostics")
+async def get_user_diagnostics(
+    user_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get detailed diagnostics for a user (PHQ-9, Keystroke, Fake Status)"""
+    require_admin_access(current_user)
+    
+    phq9_service = PHQ9Service()
+    batch_fake_service = BatchFakeDetectionService()
+    
+    # 1. Latest PHQ-9
+    latest_phq9 = firestore_service.get_latest_phq9_session(user_id)
+    phq9_details = None
+    if latest_phq9:
+        answers = latest_phq9.get('phq9_answers', {})
+        language = latest_phq9.get('language', 'en')
+        
+        # Format questions and answers
+        qa_list = []
+        for q_num in range(1, 10):
+            q_text = phq9_service.QUESTIONS.get(language, phq9_service.QUESTIONS['en']).get(q_num)
+            # answers might have string keys from Firestore
+            score = answers.get(str(q_num)) or answers.get(q_num)
+            a_text = phq9_service.ANSWER_OPTIONS.get(language, phq9_service.ANSWER_OPTIONS['en']).get(score) if score is not None else "N/A"
+            qa_list.append({
+                "question_num": q_num,
+                "question": q_text,
+                "score": score,
+                "answer": a_text
+            })
+            
+        phq9_details = {
+            "session_id": latest_phq9.get('id'),
+            "completed_at": latest_phq9.get('phq9_completed_at'),
+            "score": latest_phq9.get('phq9_score'),
+            "severity": latest_phq9.get('phq9_severity'),
+            "risk_level": latest_phq9.get('phq9_risk_level'),
+            "qa": qa_list
+        }
+        
+    # 2. Latest Typing Analysis
+    typing_analyses = firestore_service.get_user_typing_analyses(user_id)
+    latest_typing = typing_analyses[0] if typing_analyses else None
+    typing_details = None
+    if latest_typing:
+        score = latest_typing.get('depression_indicator', 0)
+        risk_level = latest_typing.get('risk_level')
+        
+        # Fallback if risk_level is missing in the document
+        if not risk_level and score is not None:
+            if score >= 0.75:
+                risk_level = "severe"
+            elif score >= 0.5:
+                risk_level = "high"
+            elif score >= 0.25:
+                risk_level = "moderate"
+            else:
+                risk_level = "low"
+
+        typing_details = {
+            "created_at": latest_typing.get('created_at'),
+            "metrics": latest_typing.get('metrics', {}),
+            "stress_score": latest_typing.get('stress_score'),
+            "depression_score": score,
+            "risk_level": risk_level
+        }
+        
+    # 3. Fake Status Detailed Indicators
+    fake_indicators = {
+        "typing": await batch_fake_service.get_user_batch_status(user_id, "typing"),
+        "voice": await batch_fake_service.get_user_batch_status(user_id, "voice")
+    }
+    
+    return {
+        "phq9": phq9_details,
+        "typing": typing_details,
+        "fake_indicators": fake_indicators
     }
 
 @router.get("/mood-checkins")

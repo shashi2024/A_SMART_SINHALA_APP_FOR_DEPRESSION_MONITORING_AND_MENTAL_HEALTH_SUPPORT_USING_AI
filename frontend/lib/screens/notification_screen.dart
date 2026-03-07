@@ -1,19 +1,23 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart'; // For AppColors
+import 'package:provider/provider.dart';
+import '../providers/language_provider.dart';
 
 class NotificationScreen extends StatelessWidget {
   const NotificationScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final lp = context.watch<LanguageProvider>();
+
     return Scaffold(
       backgroundColor: AppColors.creamYellow,
       appBar: AppBar(
         backgroundColor: AppColors.creamYellow,
         elevation: 0,
-        title: const Text(
-          'Notifications',
-          style: TextStyle(
+        title: Text(
+          lp.translate('notifications'),
+          style: const TextStyle(
             color: Colors.black87,
             fontWeight: FontWeight.bold,
             fontSize: 24,
@@ -26,63 +30,63 @@ class NotificationScreen extends StatelessWidget {
           padding: const EdgeInsets.all(16.0),
           children: [
             // Today Section
-            _buildSectionHeader('Today'),
+            _buildSectionHeader(lp.translate('today')),
             _buildNotificationCard(
               icon: Icons.mood,
-              title: 'Daily Check-in Reminder',
-              message: 'Don\'t forget to check in with Sahana today!',
-              time: '2 hours ago',
+              title: lp.translate('notif_daily_checkin_title'),
+              message: lp.translate('notif_daily_checkin_msg'),
+              time: '2 ${lp.translate('hours_ago')}',
               isRead: false,
               color: AppColors.darkGreen,
             ),
             const SizedBox(height: 12),
             _buildNotificationCard(
               icon: Icons.insights,
-              title: 'Weekly Report Ready',
-              message: 'Your weekly mental health report is now available.',
-              time: '5 hours ago',
+              title: lp.translate('notif_weekly_report_title'),
+              message: lp.translate('notif_weekly_report_msg'),
+              time: '5 ${lp.translate('hours_ago')}',
               isRead: true,
               color: AppColors.paleSageGreen,
             ),
             const SizedBox(height: 24),
             
             // Yesterday Section
-            _buildSectionHeader('Yesterday'),
+            _buildSectionHeader(lp.translate('yesterday')),
             _buildNotificationCard(
               icon: Icons.favorite,
-              title: 'Mood Trend Update',
-              message: 'Your mood has been improving this week. Keep it up!',
-              time: 'Yesterday',
+              title: lp.translate('notif_mood_trend_title'),
+              message: lp.translate('notif_mood_trend_msg'),
+              time: lp.translate('yesterday'),
               isRead: true,
               color: AppColors.lightPeach,
             ),
             const SizedBox(height: 12),
             _buildNotificationCard(
               icon: Icons.chat_bubble,
-              title: 'New Message from Sahana',
-              message: 'Sahana has a suggestion for you based on your recent check-ins.',
-              time: 'Yesterday',
+              title: lp.translate('notif_sahana_msg_title'),
+              message: lp.translate('notif_sahana_msg_msg'),
+              time: lp.translate('yesterday'),
               isRead: true,
               color: AppColors.veryLightBlue,
             ),
             const SizedBox(height: 24),
             
             // This Week Section
-            _buildSectionHeader('This Week'),
+            _buildSectionHeader(lp.translate('this_week')),
             _buildNotificationCard(
               icon: Icons.phone,
-              title: 'Call Reminder',
-              message: 'You have a scheduled call with your counselor tomorrow.',
-              time: '3 days ago',
+              title: lp.translate('notif_call_rem_title'),
+              message: lp.translate('notif_call_rem_msg'),
+              time: '3 ${lp.translate('days_ago')}',
               isRead: true,
               color: AppColors.darkGreen,
             ),
             const SizedBox(height: 12),
             _buildNotificationCard(
               icon: Icons.warning,
-              title: 'Wellness Tip',
-              message: 'Remember to take breaks and practice mindfulness exercises.',
-              time: '5 days ago',
+              title: lp.translate('notif_wellness_tip_title'),
+              message: lp.translate('notif_wellness_tip_msg'),
+              time: '5 ${lp.translate('days_ago')}',
               isRead: true,
               color: AppColors.paleSageGreen,
             ),

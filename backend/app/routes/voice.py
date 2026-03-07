@@ -13,11 +13,13 @@ from app.routes.auth import get_current_user
 from app.services.voice_analysis import VoiceAnalysisService
 from app.services.call_bot_detection import CallBotDetectionService
 from app.services.fake_detection import FakeDetectionService
+from app.services.batch_fake_detection import BatchFakeDetectionService
 from app.services.firestore_service import FirestoreService
 from app.config import settings
 
 router = APIRouter()
 firestore_service = FirestoreService()
+batch_fake_service = BatchFakeDetectionService()
 
 class VoiceAnalysisResponse(BaseModel):
     session_id: str  # Changed from int to str for Firestore
@@ -190,6 +192,13 @@ async def analyze_voice(
     if batch_info:
         # Analyze this batch
         batch_result = await batch_fake_service.analyze_voice_batch(user_id, batch_info)
+        
+        # Persist result to user profile for dashboard speed
+        firestore_service.update_user_fake_status(user_id, {
+            "is_fake": batch_result.get("is_fake", False),
+            "fake_score": batch_result.get("fake_score", 0.0),
+            "batch_type": "voice"
+        })
         
         # Create alert if batch indicates fake user
         if batch_result.get("is_fake", False) and batch_result.get("fake_score", 0) >= 0.6:

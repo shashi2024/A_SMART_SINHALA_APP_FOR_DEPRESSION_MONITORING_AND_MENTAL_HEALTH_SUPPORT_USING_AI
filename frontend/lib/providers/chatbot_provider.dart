@@ -38,6 +38,17 @@ class ChatbotProvider with ChangeNotifier {
     _apiService.setToken(token);
   }
 
+  Future<void> claimCurrentSessionIfNeeded() async {
+    final sessionId = _currentSessionId;
+    if (sessionId == null) return;
+    try {
+      await _apiService.claimChatSession(sessionId);
+    } catch (e) {
+      // Non-fatal: user can still chat; session will be claimed on next message.
+      debugPrint('Claim session failed: $e');
+    }
+  }
+
   Future<void> _loadLanguagePreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -118,8 +129,6 @@ class ChatbotProvider with ChangeNotifier {
         sessionId: _currentSessionId,
         language: languageToUse,
         keystrokeEvents: keystrokeEvents,
-        typingData: typingData,
-        sensorData: sensorData,
       );
 
       // Update session ID (convert to string if needed)
@@ -134,6 +143,24 @@ class ChatbotProvider with ChangeNotifier {
         timestamp: DateTime.now(),
       ));
       notifyListeners();
+
+      // Fire-and-forget typing analysis to drive stress + fake-user detection
+      // for the admin dashboard. This stores typing_analyses entries and
+      // updates batch fake detection, which is then shown in the admin panel.
+      if (typingData != null) {
+        try {
+          await _apiService.analyzeTyping({
+            'keystroke_timings': typingData['keystroke_timings'] ?? [],
+            'typing_speed': typingData['typing_speed'] ?? 0.0,
+            'pause_duration': typingData['pause_duration'] ?? 0.0,
+            'error_rate': typingData['error_rate'] ?? 0.0,
+            'pressure_patterns': typingData['pressure_patterns'] ?? [],
+            'session_id': _currentSessionId,
+          });
+        } catch (e) {
+          debugPrint('Typing analysis failed: $e');
+        }
+      }
     } catch (e) {
       // Add error message with details for debugging
       String errorMessage = 'Sorry, I encountered an error. Please try again.';

@@ -163,6 +163,8 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> logout() async {
+    // Notify server to mark as offline
+    await _apiService.logout();
     await _clearToken();
   }
   

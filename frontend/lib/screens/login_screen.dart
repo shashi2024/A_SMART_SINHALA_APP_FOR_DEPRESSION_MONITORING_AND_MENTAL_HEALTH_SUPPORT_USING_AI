@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chatbot_provider.dart';
 import '../providers/call_provider.dart';
+import '../providers/language_provider.dart';
 
 // Color Palette Constants
 class AppColors {
@@ -81,6 +82,8 @@ class _LoginScreenState extends State<LoginScreen> {
         chatbotProvider.setToken(authProvider.token);
         final callProvider = Provider.of<CallProvider>(context, listen: false);
         callProvider.setToken(authProvider.token);
+        // If the user chatted before logging in, attach that anonymous session to this user
+        await chatbotProvider.claimCurrentSessionIfNeeded();
       }
       
       // Navigate to home screen
@@ -135,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 
                 // Welcome Message
                 Text(
-                  'Welcome Back!',
+                  context.watch<LanguageProvider>().translate('welcome_back'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 32,
@@ -149,7 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 
                 // Subtitle
                 Text(
-                  'Let\'s continue your educational journey!',
+                  context.watch<LanguageProvider>().translate('edu_journey'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,
@@ -162,7 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 
                 // Email Field
                 Text(
-                  'Email',
+                  context.watch<LanguageProvider>().translate('email'),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -174,7 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
-                    hintText: 'Enter your student email',
+                    hintText: context.watch<LanguageProvider>().translate('enter_email'),
                     hintStyle: TextStyle(color: Colors.grey[400]),
                     filled: true,
                     fillColor: Colors.grey[100],
@@ -188,11 +191,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   validator: (value) {
+                    final lp = Provider.of<LanguageProvider>(context, listen: false);
                     if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your email';
+                      return lp.translate('please_enter_email');
                     }
                     if (!value.contains('@')) {
-                      return 'Please enter a valid email';
+                      return lp.translate('please_enter_valid_email');
                     }
                     return null;
                   },
@@ -202,7 +206,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 
                 // Password Field
                 Text(
-                  'Password',
+                  context.watch<LanguageProvider>().translate('password'),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -214,7 +218,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   controller: _passwordController,
                   obscureText: _obscurePassword,
                   decoration: InputDecoration(
-                    hintText: 'Enter your password',
+                    hintText: context.watch<LanguageProvider>().translate('enter_password'),
                     hintStyle: TextStyle(color: Colors.grey[400]),
                     filled: true,
                     fillColor: Colors.grey[100],
@@ -242,7 +246,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter your password';
+                      return Provider.of<LanguageProvider>(context, listen: false).translate('please_enter_password');
                     }
                     return null;
                   },
@@ -268,7 +272,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                     child: Text(
-                      'Forgot Password?',
+                      context.watch<LanguageProvider>().translate('forgot_password'),
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[600],
@@ -301,8 +305,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
-                      : const Text(
-                          'Sign In',
+                      : Text(
+                          context.watch<LanguageProvider>().translate('sign_in'),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -335,7 +339,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       child: Text(
-                        'Sign Up',
+                        context.watch<LanguageProvider>().translate('sign_up'),
                         style: TextStyle(
                           fontSize: 14,
                           color: AppColors.darkGreen,

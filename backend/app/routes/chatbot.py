@@ -64,6 +64,9 @@ class PHQ9Result(BaseModel):
     needs_escalation: bool
     language: str
 
+class ClaimSessionRequest(BaseModel):
+    session_id: str
+
 # ========== Free Chat Endpoint ==========
 
 @router.post("/chat", response_model=ChatResponse)
@@ -95,6 +98,17 @@ async def chat(
             raise HTTPException(status_code=404, detail="Session not found")
         session_id = session['id']
         session_type = session.get('session_type', 'chat')
+        
+        # Update session with user_id if it was anonymous and user is now authenticated
+        is_anonymous = session.get('is_anonymous', False)
+        if is_anonymous and user_id:
+            firestore_service.update_session(session_id, {
+                'user_id': user_id,
+                'is_anonymous': False
+            })
+            # Also update local session dict for subsequent logic
+            session['user_id'] = user_id
+            session['is_anonymous'] = False
         
         # Update session with mood if provided
         if chat_message.mood:
@@ -144,13 +158,17 @@ async def chat(
     if session_type == 'phq9':
         phq9_service = PHQ9Service()
         language = session.get('language') or chat_message.language or 'en'
-        # Ensure current_question is an int (Firestore might return string)
-        current_question = session.get('phq9_current_question', 1)
+        # Ensure current_question is an int (Firestore might return string or it might be None)
+        current_question = session.get('phq9_current_question')
+        if current_question is None:
+            current_question = 1
+        
         if isinstance(current_question, str):
             try:
                 current_question = int(current_question)
             except (ValueError, TypeError):
                 current_question = 1
+        
         if not isinstance(current_question, int) or current_question < 1 or current_question > 9:
             current_question = 1
         
@@ -190,17 +208,29 @@ async def chat(
         # Check if complete
         if phq9_service.is_complete(answers):
             # Calculate score and save
-            total_score = phq9_service.calculate_score(answers)
-            interpretation = phq9_service.interpret_score(total_score)
+            try:
+                total_score = phq9_service.calculate_score(answers)
+                interpretation = phq9_service.interpret_score(total_score)
+            except (ValueError, KeyError) as e:
+                print(f"[ERROR] PHQ-9 scoring failed: {e}")
+                # Fallback to current question if scoring fails
+                current_question_text = phq9_service.get_question(current_question, language)
+                return ChatResponse(
+                    response=f"There was an error calculating your score. Let's try again from the current question: {current_question_text}",
+                    session_id=session_id,
+                    language=language,
+                    intent='phq9_error',
+                    phq9_question=current_question_text
+                )
             
             # Update session with results
             firestore_service.update_session(session_id, {
-                'phq9_answers': answers,
-                'phq9_score': total_score,
+                'phq9_answers': {str(k): v for k, v in answers.items()}, # Ensure string keys for Firestore
+                'phq9_score': int(total_score),
                 'phq9_severity': interpretation['severity'],
                 'phq9_risk_level': interpretation['risk_level'],
                 'phq9_completed_at': datetime.utcnow().isoformat(),
-                'depression_score': total_score / 27.0,  # Normalize to 0-1
+                'depression_score': float(total_score / 27.0),
                 'risk_level': interpretation['risk_level']
             })
             
@@ -243,7 +273,7 @@ async def chat(
         # Ensure answers dict and next_question_num are proper types for Firestore
         # Firestore can handle int keys in dicts, but we'll ensure consistency
         firestore_service.update_session(session_id, {
-            'phq9_answers': answers,
+            'phq9_answers': {str(k): v for k, v in answers.items()}, # Ensure string keys for Firestore
             'phq9_current_question': int(next_question_num)  # Ensure it's an int
         })
         
@@ -365,6 +395,45 @@ async def chat(
         phq9_question=phq9_question
     )
 
+# ========== Session Claiming (anonymous -> authenticated) ==========
+
+@router.post("/claim-session")
+async def claim_anonymous_session(
+    request: ClaimSessionRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Attach an existing anonymous chat session to the currently authenticated user.
+    This is used when the user chatted before logging in and then logs in without
+    sending another message (so the session would otherwise remain anonymous).
+    """
+    user_id = current_user.get('id')
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID not found")
+    
+    session = firestore_service.get_session_by_id(request.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # If session is already owned by someone else, deny.
+    existing_user_id = session.get('user_id')
+    if existing_user_id and str(existing_user_id) != str(user_id):
+        raise HTTPException(status_code=403, detail="Not authorized to claim this session")
+    
+    # Only claim if it's anonymous / not yet attached.
+    is_anonymous = session.get('is_anonymous', False) or not session.get('user_id')
+    if is_anonymous:
+        firestore_service.update_session(request.session_id, {
+            'user_id': user_id,
+            'is_anonymous': False
+        })
+    
+    return {
+        "message": "Session claimed successfully",
+        "session_id": request.session_id,
+        "user_id": user_id
+    }
+
 # ========== PHQ-9 Endpoints ==========
 
 @router.post("/phq9/start", response_model=PHQ9Response)
@@ -438,8 +507,16 @@ async def answer_phq9_question(
     if session.get('session_type') != 'phq9':
         raise HTTPException(status_code=400, detail="Session is not a PHQ-9 session")
     
-    # Get current question number
-    current_question = session.get('phq9_current_question', 1)
+    # Get current question number - handle potential None
+    current_question = session.get('phq9_current_question')
+    if current_question is None:
+        current_question = 1
+    elif isinstance(current_question, str):
+        try:
+            current_question = int(current_question)
+        except (ValueError, TypeError):
+            current_question = 1
+            
     if current_question > 9:
         raise HTTPException(status_code=400, detail="All questions already answered")
     
@@ -459,16 +536,16 @@ async def answer_phq9_question(
     if phq9_service.is_complete(answers):
         # Calculate score and save
         total_score = phq9_service.calculate_score(answers)
-        interpretation = phq9_service.interpret_score(total_score)
+        interpretation = phq9_service.interpret_score(total_score, language=language)
         
         # Update session with results
         firestore_service.update_session(request.session_id, {
-            'phq9_answers': answers,
-            'phq9_score': total_score,
+            'phq9_answers': {str(k): v for k, v in answers.items()}, # Ensure string keys for Firestore
+            'phq9_score': int(total_score),
             'phq9_severity': interpretation['severity'],
             'phq9_risk_level': interpretation['risk_level'],
             'phq9_completed_at': datetime.utcnow().isoformat(),
-            'depression_score': total_score / 27.0,  # Normalize to 0-1
+            'depression_score': float(total_score / 27.0),  # Normalize to 0-1
             'risk_level': interpretation['risk_level']
         })
         
@@ -498,8 +575,8 @@ async def answer_phq9_question(
     
     # Update session
     firestore_service.update_session(request.session_id, {
-        'phq9_answers': answers,
-        'phq9_current_question': next_question_num
+        'phq9_answers': {str(k): v for k, v in answers.items()}, # Ensure string keys for Firestore
+        'phq9_current_question': int(next_question_num)  # Ensure it's an int
     })
     
     # Get next question text
@@ -543,7 +620,7 @@ async def get_phq9_result(
     language = session.get('language', 'en')
     
     # Get interpretation
-    interpretation = phq9_service.interpret_score(score)
+    interpretation = phq9_service.interpret_score(score, language=language)
     
     return PHQ9Result(
         session_id=session_id,

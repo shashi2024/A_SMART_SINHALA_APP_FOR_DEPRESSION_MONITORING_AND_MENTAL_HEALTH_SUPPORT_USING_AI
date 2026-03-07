@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../providers/language_provider.dart';
 import '../providers/chatbot_provider.dart';
 import '../providers/sensor_provider.dart';
 import '../services/typing_analyzer.dart';
@@ -22,6 +23,8 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
   bool _hasStartedChat = false;
   bool _showLoginPrompt = false;
   int _messageCount = 0;
+  bool _hasShownCameraPrompt = false;
+  bool _hasShownVoicePrompt = false;
 
   @override
   void initState() {
@@ -30,7 +33,6 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
     
     // Initialize chatbot provider (without auth token for first-time users)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final chatbotProvider = Provider.of<ChatbotProvider>(context, listen: false);
       // Don't set token - allow anonymous chat
     });
   }
@@ -78,6 +80,18 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
       if (_messageCount >= 3 && !_showLoginPrompt) {
         _showLoginPrompt = true;
       }
+
+      // Around 5–6th message: invite user to quick camera-based check-in
+      if ((_messageCount == 5 || _messageCount == 6) && !_hasShownCameraPrompt) {
+        _hasShownCameraPrompt = true;
+        _showCameraPrompt();
+      }
+
+      // Around 8–9th message: invite user to quick voice check
+      if ((_messageCount == 8 || _messageCount == 9) && !_hasShownVoicePrompt) {
+        _hasShownVoicePrompt = true;
+        _showVoicePrompt();
+      }
     });
 
     // Scroll to bottom
@@ -101,9 +115,106 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
     }
   }
 
+  Future<void> _showCameraPrompt() async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Quick camera check-in'),
+        content: const Text(
+          'To better understand your current state, Sahana can take a short, one-time '
+          'snapshot using your front camera. This helps the biofeedback system analyse '
+          'facial cues together with sensor data.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Maybe later'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pushNamed('/bio-feedback');
+            },
+            child: const Text('Open camera'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showVoicePrompt() async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Optional voice check'),
+        content: const Text(
+          'A short 10–15 second voice sample helps detect stress patterns and fake-caller '
+          'behaviour using our audio models. You can skip this if you are not comfortable.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Skip for now'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pushNamed('/voice');
+            },
+            child: const Text('Record short sample'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final lp = context.watch<LanguageProvider>();
+    final media = MediaQuery.of(context);
+    final isNarrow = media.size.width < 380 || media.textScaler.scale(1.0) > 1.15;
     return Scaffold(
+      appBar: AppBar(
+        // Give the app bar a solid background and avoid drawing it under
+        // the system status bar / Flutter debug banner. On some phones
+        // the previous transparent + overlay setup caused the login
+        // button in the top‑right to be hidden.
+        title: Text(
+          lp.translate('chat_with_sahana'),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: AppColors.creamYellow,
+        iconTheme: const IconThemeData(color: AppColors.darkGreen),
+        elevation: 0.5,
+        actions: [
+          if (isNarrow)
+            IconButton(
+              tooltip: lp.translate('login'),
+              onPressed: _handleLogin,
+              icon: const Icon(Icons.login, color: AppColors.darkGreen, size: 22),
+            )
+          else
+            TextButton.icon(
+              onPressed: _handleLogin,
+              icon: const Icon(Icons.login, color: AppColors.darkGreen, size: 20),
+              label: Text(
+                lp.translate('login'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.darkGreen,
+                ),
+              ),
+            ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      // Do not extend the body behind the app bar so that the login
+      // button is always fully visible on mobile devices.
+      extendBodyBehindAppBar: false,
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -118,26 +229,6 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Header with title only (no back button for first-time users)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Chat with Sahana',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[800],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Login prompt banner (shown after a few messages)
               if (_showLoginPrompt)
                 Container(
                   width: double.infinity,
@@ -158,7 +249,7 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.info_outline,
                             color: Colors.white,
                             size: 24,
@@ -166,8 +257,8 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'Continue your conversation',
-                              style: TextStyle(
+                              lp.translate('continue_conversation'),
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
@@ -178,7 +269,7 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Login or sign up to save your chat history and continue your conversation anytime.',
+                        lp.translate('login_save_history'),
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.white.withOpacity(0.9),
@@ -197,9 +288,9 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: const Text(
-                            'Login to Continue',
-                            style: TextStyle(
+                          child: Text(
+                            lp.translate('login_continue'),
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                             ),
@@ -212,8 +303,8 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
                           Navigator.of(context).pushNamed('/signup');
                         },
                         child: Text(
-                          'Don\'t have an account? Sign up',
-                          style: TextStyle(
+                          lp.translate('dont_have_account_signup'),
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 14,
                             decoration: TextDecoration.underline,
@@ -230,7 +321,7 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
                   builder: (context, provider, child) {
                     if (!_hasStartedChat && provider.messages.isEmpty) {
                       // Initial greeting screen
-                      return _buildInitialGreeting();
+                      return _buildInitialGreeting(lp);
                     } else {
                       // Chat messages
                       return _buildChatMessages(provider);
@@ -248,7 +339,7 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.2),
+                      color: Colors.grey.withValues(alpha: 0.2),
                       spreadRadius: 1,
                       blurRadius: 5,
                     ),
@@ -259,11 +350,11 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
                     Expanded(
                       child: TextField(
                         controller: _messageController,
-                        decoration: const InputDecoration(
-                          hintText: 'Tell me what\'s on your mind.....',
-                          hintStyle: TextStyle(color: Colors.grey),
+                        decoration: InputDecoration(
+                          hintText: lp.translate('mind_hint'),
+                          hintStyle: const TextStyle(color: Colors.grey),
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(
+                          contentPadding: const EdgeInsets.symmetric(
                             horizontal: 0,
                             vertical: 16.0,
                           ),
@@ -272,7 +363,7 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
                       ),
                     ),
                     IconButton(
-                      icon: Icon(
+                      icon: const Icon(
                         Icons.send,
                         color: AppColors.darkGreen,
                         size: 28,
@@ -289,7 +380,7 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
     );
   }
 
-  Widget _buildInitialGreeting() {
+  Widget _buildInitialGreeting(LanguageProvider lp) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -338,24 +429,23 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
                     ),
                     children: [
                       TextSpan(
-                        text: 'SAHANA',
-                        style: TextStyle(
+                        text: lp.translate('sahana_listen').split(' is here')[0], // Extract SAHANA
+                        style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           color: AppColors.darkGreen,
                         ),
                       ),
-                      const TextSpan(
-                        text: ' is here to listen to you,\n',
-                      ),
-                      const TextSpan(
-                        text: 'How are you feeling right now?',
+                      TextSpan(
+                        text: lp.translate('sahana_listen').contains('SAHANA') 
+                            ? lp.translate('sahana_listen').substring(lp.translate('sahana_listen').indexOf('SAHANA') + 6)
+                            : lp.translate('sahana_listen'),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'Start chatting to begin your mental health journey',
+                  lp.translate('start_chatting_journey'),
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey[600],
