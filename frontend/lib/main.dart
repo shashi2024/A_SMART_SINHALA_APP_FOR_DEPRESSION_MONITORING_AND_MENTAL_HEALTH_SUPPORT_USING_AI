@@ -10,6 +10,9 @@ import 'screens/voice_call_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/calls_home_screen.dart';
 import 'screens/welcome_chat_screen.dart';
+import 'screens/bio_feedback_screen.dart';
+import 'screens/phq9_screen.dart';
+import 'screens/keystroke_diagnostic_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/auth_provider.dart';
 import 'providers/chatbot_provider.dart';
@@ -17,8 +20,10 @@ import 'providers/sensor_provider.dart';
 import 'providers/voice_provider.dart';
 import 'providers/call_provider.dart';
 import 'providers/digital_twin_provider.dart';
+import 'providers/language_provider.dart';
 import 'services/api_service.dart';
 import 'services/sensor_service.dart';
+import 'services/permission_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,13 +45,17 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ChatbotProvider()),
-        ChangeNotifierProvider(create: (_) => SensorProvider()),
+        ChangeNotifierProvider(create: (_) => SensorProvider()..initialize()..startMonitoring()),
         ChangeNotifierProvider(create: (_) => VoiceProvider()),
         ChangeNotifierProvider(create: (_) => CallProvider()),
         ChangeNotifierProvider(create: (_) => DigitalTwinProvider()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
+        Provider<ApiService>(create: (_) => ApiService()),
+        Provider<PermissionService>(create: (_) => PermissionService()),
       ],
       child: MaterialApp(
         title: 'Sahana',
+        debugShowCheckedModeBanner: false,
         theme: ThemeData(
           primarySwatch: Colors.blue,
           useMaterial3: true,
@@ -61,6 +70,9 @@ class MyApp extends StatelessWidget {
           '/profile': (context) => const ProfileScreen(),
           '/calls': (context) => const CallsHomeScreen(),
           '/welcome': (context) => const WelcomeChatScreen(),
+          '/bio-feedback': (context) => const BioFeedbackScreen(),
+          '/phq9': (context) => PHQ9Screen(),
+          '/keystroke': (context) => KeystrokeDiagnosticScreen(),
         },
       ),
     );

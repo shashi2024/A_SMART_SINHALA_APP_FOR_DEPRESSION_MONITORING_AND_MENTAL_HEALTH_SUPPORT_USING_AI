@@ -57,21 +57,16 @@ class BatchFakeDetectionService:
     async def analyze_typing_batch(
         self,
         user_id: str,
-        batch_info: Dict[str, Any]
+        batch_info: Dict[str, Any],
+        pre_fetched_analyses: Optional[List[Dict]] = None
     ) -> Dict[str, Any]:
         """
         Analyze a batch of typing patterns to detect fake users
-        
-        Args:
-            user_id: User ID
-            batch_info: Batch information (start, end, name)
-        
-        Returns:
-            Analysis result with fake score and confidence
         """
         try:
-            # Get all typing analyses for this user
-            all_analyses = self.firestore_service.get_user_typing_analyses(user_id)
+            # Use pre-fetched data if available, otherwise fetch
+            all_analyses = pre_fetched_analyses if pre_fetched_analyses is not None else \
+                           self.firestore_service.get_user_typing_analyses(user_id)
             
             # Sort by creation time to get chronological order
             sorted_analyses = sorted(
@@ -115,33 +110,26 @@ class BatchFakeDetectionService:
         
         except Exception as e:
             print(f"[ERROR] Error analyzing typing batch: {e}")
-            import traceback
-            traceback.print_exc()
             return {
                 "batch_name": batch_info["name"],
                 "error": str(e),
                 "is_fake": False,
                 "fake_score": 0.0
             }
-    
+
     async def analyze_voice_batch(
         self,
         user_id: str,
-        batch_info: Dict[str, Any]
+        batch_info: Dict[str, Any],
+        pre_fetched_analyses: Optional[List[Dict]] = None
     ) -> Dict[str, Any]:
         """
         Analyze a batch of voice calls to detect fake users
-        
-        Args:
-            user_id: User ID
-            batch_info: Batch information (start, end, name)
-        
-        Returns:
-            Analysis result with fake score and confidence
         """
         try:
-            # Get all voice analyses for this user
-            all_analyses = self.firestore_service.get_user_voice_analyses(user_id)
+            # Use pre-fetched data if available
+            all_analyses = pre_fetched_analyses if pre_fetched_analyses is not None else \
+                           self.firestore_service.get_user_voice_analyses(user_id)
             
             # Sort by creation time
             sorted_analyses = sorted(
@@ -166,18 +154,17 @@ class BatchFakeDetectionService:
             # Use specific call bot detection model for each analysis if available
             model_scores = []
             for analysis in batch_analyses:
-                # If we have individual confidence scores from the model recorded earlier
                 if 'fake_confidence' in analysis:
                     model_scores.append(analysis['fake_confidence'])
             
-            # Aggregate features for rule-based refinement
+            # Aggregate features
             aggregated_features = self._aggregate_voice_features(batch_analyses)
             
-            # Calculate overall fake score combining batch statistics and model results
+            # Calculate overall fake score
             fake_score = self._detect_fake_voice_patterns(aggregated_features, model_scores)
             
             # Determine if fake
-            is_fake = fake_score >= 0.5  # Adjust threshold based on algorithm preference
+            is_fake = fake_score >= 0.5
             
             return {
                 "batch_name": batch_info["name"],
@@ -191,15 +178,13 @@ class BatchFakeDetectionService:
         
         except Exception as e:
             print(f"[ERROR] Error analyzing voice batch: {e}")
-            import traceback
-            traceback.print_exc()
             return {
                 "batch_name": batch_info["name"],
                 "error": str(e),
                 "is_fake": False,
                 "fake_score": 0.0
             }
-    
+
     def _aggregate_typing_features(self, batch_analyses: List[Dict]) -> Dict[str, Any]:
         """Aggregate typing features from a batch of analyses"""
         import json
@@ -256,8 +241,6 @@ class BatchFakeDetectionService:
     
     def _aggregate_voice_features(self, batch_analyses: List[Dict]) -> Dict[str, Any]:
         """Aggregate voice features from a batch of analyses"""
-        import json
-        
         pitches = []
         energies = []
         durations = []
@@ -270,9 +253,7 @@ class BatchFakeDetectionService:
             fake_confidences.append(analysis.get('fake_confidence', 0))
         
         # Calculate statistics
-        pitch_variance = np.var(pitches) if pitches else 0
         pitch_mean = np.mean(pitches) if pitches else 0
-        energy_variance = np.var(energies) if energies else 0
         energy_mean = np.mean(energies) if energies else 0
         
         # Consistency metrics
@@ -283,9 +264,9 @@ class BatchFakeDetectionService:
         avg_fake_confidence = np.mean(fake_confidences) if fake_confidences else 0
         
         return {
-            "pitch_variance": float(pitch_variance),
+            "pitch_variance": float(np.var(pitches)) if pitches else 0,
             "pitch_mean": float(pitch_mean),
-            "energy_variance": float(energy_variance),
+            "energy_variance": float(np.var(energies)) if energies else 0,
             "energy_mean": float(energy_mean),
             "pitch_consistency": float(pitch_consistency),
             "energy_consistency": float(energy_consistency),
@@ -295,88 +276,38 @@ class BatchFakeDetectionService:
         }
     
     def _detect_fake_typing_patterns(self, features: Dict[str, Any]) -> float:
-        """
-        Detect fake typing patterns from aggregated features
-        Returns fake score (0-1)
-        """
+        """Detect fake typing patterns from aggregated features"""
         fake_score = 0.0
-        
-        # 1. Too consistent typing speed (robotic)
-        if features["speed_consistency"] > 0.9:
-            fake_score += 0.3
-        
-        # 2. Too consistent timing (robotic)
-        if features["timing_consistency"] > 0.85:
-            fake_score += 0.25
-        
-        # 3. Unusually low error rate (too perfect)
-        if features["avg_error_rate"] < 0.01:
-            fake_score += 0.15
-        
-        # 4. Unusually consistent pause duration
-        if features["avg_pause_duration"] > 0 and features["timing_std"] < 0.1:
-            fake_score += 0.1
-        
-        # 5. Very low timing variance (too regular)
-        if features["timing_variance"] < 0.01:
-            fake_score += 0.2
-        
+        if features["speed_consistency"] > 0.9: fake_score += 0.3
+        if features["timing_consistency"] > 0.85: fake_score += 0.25
+        if features["avg_error_rate"] < 0.01: fake_score += 0.15
+        if features.get("timing_variance", 0) < 0.01: fake_score += 0.2
         return min(1.0, fake_score)
     
     def _detect_fake_voice_patterns(self, features: Dict[str, Any], model_scores: List[float] = None) -> float:
-        """
-        Detect fake voice patterns from aggregated features
-        Combines batch statistics with pre-calculated model scores
-        """
-        # If we have model scores, use them as the primary weight
-        if model_scores and len(model_scores) > 0:
-            base_score = np.mean(model_scores)
-        else:
-            base_score = 0.0
-            
+        """Detect fake voice patterns from aggregated features"""
+        base_score = np.mean(model_scores) if model_scores else 0.0
         heuristic_score = 0.0
-        
-        # 1. Too consistent pitch (synthetic voice)
-        if features["pitch_consistency"] > 0.9:
-            heuristic_score += 0.2
-        
-        # 2. Too consistent energy (synthetic voice)
-        if features["energy_consistency"] > 0.85:
-            heuristic_score += 0.2
-        
-        # 3. Very low pitch variance
-        if features["pitch_variance"] < 10:
-            heuristic_score += 0.1
+        if features["pitch_consistency"] > 0.9: heuristic_score += 0.2
+        if features["energy_consistency"] > 0.85: heuristic_score += 0.2
+        if features.get("pitch_variance", 0) < 10: heuristic_score += 0.1
             
-        # Combine model score with heuristics (Weighted)
-        # 70% model, 30% batch heuristics
         if base_score > 0:
             final_score = (base_score * 0.7) + (min(1.0, heuristic_score) * 0.3)
         else:
             final_score = min(1.0, heuristic_score)
-            
         return float(final_score)
     
     def _get_timestamp(self, timestamp_value) -> datetime:
         """Convert various timestamp formats to datetime"""
-        if timestamp_value is None:
-            return datetime.min
-        
-        if isinstance(timestamp_value, datetime):
-            return timestamp_value
-        
+        if timestamp_value is None: return datetime.min
+        if isinstance(timestamp_value, datetime): return timestamp_value
         if hasattr(timestamp_value, 'timestamp'):
-            try:
-                return datetime.fromtimestamp(timestamp_value.timestamp())
-            except:
-                pass
-        
+            try: return datetime.fromtimestamp(timestamp_value.timestamp())
+            except: pass
         if isinstance(timestamp_value, str):
-            try:
-                return datetime.fromisoformat(timestamp_value.replace('Z', '+00:00'))
-            except:
-                pass
-        
+            try: return datetime.fromisoformat(timestamp_value.replace('Z', '+00:00'))
+            except: pass
         return datetime.min
     
     async def get_user_batch_status(
@@ -385,12 +316,10 @@ class BatchFakeDetectionService:
         batch_type: str = "typing"
     ) -> Dict[str, Any]:
         """
-        Get status of all batches for a user
-        
-        Returns:
-            Dictionary with batch statuses and overall fake assessment
+        Get status of all batches for a user (Optimized to reduce queries)
         """
         try:
+            # FETCH EVERYTHING ONCE
             if batch_type == "typing":
                 all_analyses = self.firestore_service.get_user_typing_analyses(user_id)
                 batches = self.typing_batches
@@ -403,14 +332,13 @@ class BatchFakeDetectionService:
             
             for batch in batches:
                 if total_count >= batch["end"]:
-                    # Batch is complete, analyze it
+                    # PASS PRE-FETCHED DATA
                     if batch_type == "typing":
-                        result = await self.analyze_typing_batch(user_id, batch)
+                        result = await self.analyze_typing_batch(user_id, batch, pre_fetched_analyses=all_analyses)
                     else:
-                        result = await self.analyze_voice_batch(user_id, batch)
+                        result = await self.analyze_voice_batch(user_id, batch, pre_fetched_analyses=all_analyses)
                     batch_results.append(result)
                 else:
-                    # Batch not yet reached
                     batch_results.append({
                         "batch_name": batch["name"],
                         "batch_range": f"{batch['start']}-{batch['end']}",
@@ -423,8 +351,8 @@ class BatchFakeDetectionService:
             completed_batches = [r for r in batch_results if r.get("is_fake") is not None]
             if completed_batches:
                 fake_scores = [r.get("fake_score", 0) for r in completed_batches]
-                avg_fake_score = np.mean(fake_scores)
-                is_fake_overall = avg_fake_score >= 0.5
+                avg_fake_score = float(np.mean(fake_scores))
+                is_fake_overall = bool(avg_fake_score >= 0.5)
             else:
                 avg_fake_score = 0.0
                 is_fake_overall = False
@@ -443,10 +371,5 @@ class BatchFakeDetectionService:
         
         except Exception as e:
             print(f"[ERROR] Error getting batch status: {e}")
-            import traceback
-            traceback.print_exc()
-            return {
-                "user_id": user_id,
-                "error": str(e)
-            }
+            return {"user_id": user_id, "error": str(e)}
 

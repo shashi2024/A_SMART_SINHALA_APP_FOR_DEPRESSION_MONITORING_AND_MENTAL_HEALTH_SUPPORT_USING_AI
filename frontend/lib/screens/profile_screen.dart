@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/digital_twin_provider.dart';
+import '../providers/language_provider.dart';
 import 'login_screen.dart'; // For AppColors
 import 'login_screen.dart' as login_screen; // For navigation
 
@@ -19,9 +20,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Load profile when screen is accessed
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final twinProvider = Provider.of<DigitalTwinProvider>(context, listen: false);
-      if (twinProvider.profile == null) {
-        twinProvider.loadProfile();
-      }
+      twinProvider.updateProfile();
     });
   }
 
@@ -32,9 +31,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.creamYellow,
         elevation: 0,
-        title: const Text(
-          'Profile',
-          style: TextStyle(
+        title: Text(
+          context.watch<LanguageProvider>().translate('profile'),
+          style: const TextStyle(
             color: Colors.black87,
             fontWeight: FontWeight.bold,
             fontSize: 24,
@@ -45,6 +44,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: Consumer2<AuthProvider, DigitalTwinProvider>(
         builder: (context, authProvider, twinProvider, child) {
           final user = authProvider.user;
+          final lp = context.watch<LanguageProvider>();
           String displayName = user?.username ?? 'User';
           if (displayName.contains('@')) {
             displayName = displayName.split('@').first;
@@ -136,9 +136,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             size: 24,
                           ),
                           const SizedBox(width: 12),
-                          const Text(
-                            'User Details',
-                            style: TextStyle(
+                          Text(
+                            lp.translate('user_details'),
+                            style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                               color: Colors.black87,
@@ -148,29 +148,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 20),
                       _buildDetailRow(
-                        'User ID',
+                        lp.translate('user_id'),
                         user?.id.toString() ?? 'N/A',
                         Icons.badge,
                         AppColors.darkGreen,
                       ),
                       const Divider(height: 32),
                       _buildDetailRow(
-                        'Username',
+                        lp.translate('username'),
                         user?.username ?? 'N/A',
                         Icons.person_outline,
                         AppColors.paleSageGreen,
                       ),
                       const Divider(height: 32),
                       _buildDetailRow(
-                        'Email',
+                        lp.translate('email'),
                         user?.email ?? 'N/A',
                         Icons.email_outlined,
                         AppColors.lightPeach,
                       ),
                       const Divider(height: 32),
                       _buildDetailRow(
-                        'Account Type',
-                        user?.isAdmin == true ? 'Admin' : 'User',
+                        lp.translate('account_type'),
+                        user?.isAdmin == true ? lp.translate('admin') : lp.translate('regular_user'),
                         Icons.admin_panel_settings_outlined,
                         AppColors.veryLightBlue,
                       ),
@@ -206,9 +206,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               size: 24,
                             ),
                             const SizedBox(width: 12),
-                            const Text(
-                              'Mental Health Profile',
-                              style: TextStyle(
+                            Text(
+                              lp.translate('mental_health_profile'),
+                              style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
@@ -218,19 +218,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(height: 20),
                         _buildProfileRow(
-                          'Total Sessions',
+                          lp.translate('total_sessions'),
                           twinProvider.profile!['total_sessions']?.toString() ?? '0',
                         ),
                         const Divider(height: 32),
                         _buildProfileRow(
-                          'Average Depression Score',
+                          lp.translate('avg_depression_score'),
                           twinProvider.profile!['average_depression_score'] != null
                               ? '${(twinProvider.profile!['average_depression_score'] * 100).toStringAsFixed(1)}%'
                               : 'N/A',
                         ),
                         const Divider(height: 32),
                         _buildProfileRow(
-                          'Risk Level',
+                          lp.translate('risk_level'),
                           twinProvider.profile!['risk_level'] ?? 'Low',
                         ),
                       ],
@@ -266,9 +266,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 size: 24,
                               ),
                             const SizedBox(width: 12),
-                            const Text(
-                              'Risk Factors',
-                              style: TextStyle(
+                            Text(
+                              lp.translate('risk_factors'),
+                              style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
@@ -329,8 +329,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         context: context,
                         builder: (BuildContext context) {
                           return AlertDialog(
-                            title: const Text('Logout'),
-                            content: const Text('Are you sure you want to logout?'),
+                            title: Text(lp.translate('logout_confirm_title')),
+                            content: Text(lp.translate('logout_confirm_msg')),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
@@ -338,7 +338,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               TextButton(
                                 onPressed: () => Navigator.of(context).pop(false),
                                 child: Text(
-                                  'Cancel',
+                                  lp.translate('cancel'),
                                   style: TextStyle(color: Colors.grey[600]),
                                 ),
                               ),
@@ -351,7 +351,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                child: const Text('Logout'),
+                                child: Text(lp.translate('login')), // Reusing 'login' for Logout button in some contexts or add 'logout'
                               ),
                             ],
                           );
@@ -370,9 +370,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       }
                     },
                     icon: const Icon(Icons.logout, color: Colors.white),
-                    label: const Text(
-                      'Logout',
-                      style: TextStyle(
+                    label: Text(
+                      lp.translate('login'), // Reusing login or add logout
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,

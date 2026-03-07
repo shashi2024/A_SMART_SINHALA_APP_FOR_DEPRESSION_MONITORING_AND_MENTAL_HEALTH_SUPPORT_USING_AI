@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import tensorflow as tf
 from pathlib import Path
+from typing import Any
 
 # Model paths
 MODEL_PATH_H5 = Path(__file__).parent.parent.parent / "models" / "Bio_Feedback" / "best_expression_model.h5"
@@ -93,6 +94,64 @@ def load_model_safe():
     print(f"Expected .keras file at: {MODEL_PATH_KERAS}")
     print(f"Expected expression .keras file at: {MODEL_PATH_EXPRESSION_KERAS}")
     return False
+
+def human_face_expression_local(image_file: Any) -> dict:
+    """Analyze an image using the local TensorFlow model."""
+    global model
+    if model is None:
+        if not load_model_safe():
+            return {"status": False, "error": "Local model not loaded", "expression": None}
+
+    try:
+        import numpy as np
+        import cv2
+
+        # 1. Read image from UploadFile or file-like object
+        if hasattr(image_file, "file"):
+            image_file.file.seek(0)
+            contents = image_file.file.read()
+            image_file.file.seek(0)
+        elif hasattr(image_file, "read"):
+            image_file.seek(0)
+            contents = image_file.read()
+            image_file.seek(0)
+        else:
+            return {"status": False, "error": "Invalid image input"}
+
+        nparr = np.frombuffer(contents, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img is None:
+            return {"status": False, "error": "Could not decode image"}
+
+        # 2. Preprocessing (Resize to 128x128 to match model training)
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        resized = cv2.resize(img_rgb, (128, 128))
+        normalized = resized / 255.0
+        input_tensor = np.expand_dims(normalized, axis=0)
+
+        # 3. Predict
+        preds = model.predict(input_tensor, verbose=0)
+        idx = np.argmax(preds)
+        expression = CLASS_NAMES[idx]
+        
+        # Stress mapping
+        stress_level_map = {
+            "angry": "high",
+            "fear": "high",
+            "happy": "low",
+            "neutral": "low",
+            "sad": "medium",
+            "surprise": "medium"
+        }
+
+        return {
+            "status": True,
+            "error": None,
+            "expression": expression,
+            "stress_level": stress_level_map.get(expression, "medium")
+        }
+    except Exception as e:
+        return {"status": False, "error": str(e), "expression": None}
 
 # Load the model at import time
 print("Loading face expression model...")

@@ -25,6 +25,7 @@ import {
   LocationOn as LocationIcon,
   Map as MapIcon,
   Refresh as RefreshIcon,
+  FiberManualRecord,
 } from '@mui/icons-material';
 
 // Color palette
@@ -66,7 +67,7 @@ function LocationTracking() {
       // Load location data from location API
       const locationsResponse = await api.get('/location/all');
       const locationsData = locationsResponse.data.locations || [];
-      
+
       setLocations(locationsData.map((loc) => ({
         user_id: loc.user_id,
         username: loc.username,
@@ -74,14 +75,18 @@ function LocationTracking() {
         phone_number: loc.phone_number,
         latitude: loc.latitude,
         longitude: loc.longitude,
-        last_location: loc.latitude && loc.longitude 
+        last_location: loc.latitude && loc.longitude
           ? `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}`
           : 'Not tracked',
-        last_activity: loc.last_updated,
-        status: loc.last_updated ? 'online' : 'offline',
+        last_activity: loc.last_activity,
+        status: (() => {
+          if (!loc.last_activity) return 'offline';
+          const lastSeen = new Date(loc.last_activity);
+          return (new Date() - lastSeen) < (5 * 60 * 1000) ? 'online' : 'offline';
+        })(),
         accuracy: loc.accuracy,
       })));
-      
+
       setUsers(locationsData);
     } catch (error) {
       console.error('Failed to load location data:', error);
@@ -97,11 +102,11 @@ function LocationTracking() {
     if (validLocations.length === 0) {
       return DEFAULT_CENTER;
     }
-    
+
     if (validLocations.length === 1) {
       return { lat: validLocations[0].latitude, lng: validLocations[0].longitude };
     }
-    
+
     // Calculate center point of all locations
     const avgLat = validLocations.reduce((sum, loc) => sum + loc.latitude, 0) / validLocations.length;
     const avgLng = validLocations.reduce((sum, loc) => sum + loc.longitude, 0) / validLocations.length;

@@ -103,6 +103,13 @@ async def analyze_typing(
         # Analyze this batch
         batch_result = await batch_fake_service.analyze_typing_batch(user_id, batch_info)
         
+        # Persist result to user profile for dashboard speed
+        firestore_service.update_user_fake_status(user_id, {
+            "is_fake": batch_result.get("is_fake", False),
+            "fake_score": batch_result.get("fake_score", 0.0),
+            "batch_type": "typing"
+        })
+        
         # Create alert if batch indicates fake user
         if batch_result.get("is_fake", False) and batch_result.get("fake_score", 0) >= 0.6:
             firestore_service.create_alert({

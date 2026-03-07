@@ -3,7 +3,7 @@ PHQ-9 Questionnaire Service
 Handles the Patient Health Questionnaire-9 depression screening
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from enum import Enum
 
 class PHQ9Question(Enum):
@@ -175,26 +175,53 @@ class PHQ9Service:
         
         return None  # Could not parse
     
-    def calculate_score(self, answers: Dict[int, int]) -> int:
+    def calculate_score(self, answers: Dict[Any, int]) -> int:
         """
         Calculate total PHQ-9 score from answers
         answers: Dict with question_num (1-9) as key and score (0-3) as value
+        Handles both int and string keys.
         """
-        if len(answers) != 9:
-            raise ValueError("All 9 questions must be answered")
-        
         total = 0
         for q_num in range(1, 10):
-            if q_num not in answers:
+            # Try both int and string keys
+            score = answers.get(q_num)
+            if score is None:
+                score = answers.get(str(q_num))
+            
+            if score is None:
                 raise ValueError(f"Question {q_num} is missing")
-            score = answers[q_num]
+            
             if not (0 <= score <= 3):
                 raise ValueError(f"Invalid score {score} for question {q_num}")
             total += score
         
         return total
     
-    def interpret_score(self, score: int) -> Dict[str, any]:
+    RECOMMENDATIONS = {
+        'en': {
+            'minimal': "Your responses suggest minimal depression symptoms. Continue monitoring your mental health.",
+            'mild': "Your responses suggest mild depression. Consider speaking with a mental health professional.",
+            'moderate': "Your responses suggest moderate depression. We recommend speaking with a mental health professional or calling 1926.",
+            'moderately_severe': "Your responses suggest moderately severe depression. Please consider immediate support. Call 1926 or speak with a mental health professional.",
+            'severe': "Your responses suggest severe depression. Please seek immediate support. Call 1926 now or contact a mental health professional urgently."
+        },
+        'si': {
+            'minimal': "ඔබේ ප්‍රතිචාර වලට අනුව අවම අවදානමක් පෙන්නුම් කරයි. දිගටම ඔබේ මානසික සෞඛ්‍යය ගැන සැලකිලිමත් වන්න.",
+            'mild': "ඔබේ ප්‍රතිචාර වලට අනුව සුළු විශාද තත්වයක් පෙන්නුම් කරයි. මානසික සෞඛ්‍ය උපදේශකයෙකු හමුවීම ගැන සලකා බලන්න.",
+            'moderate': "ඔබේ ප්‍රතිචාර වලට අනුව මධ්‍යස්ථ විශාද තත්වයක් පෙන්නුම් කරයි. මානසික සෞඛ්‍ය උපදේශකයෙකු හමුවීමට හෝ 1926 අමතන ලෙස අපි නිර්දේශ කරමු.",
+            'moderately_severe': "ඔබේ ප්‍රතිචාර වලට අනුව මධ්‍යස්ථ බරපතල විශාද තත්වයක් පෙන්නුම් කරයි. කරුණාකර වහාම සහාය ලබා ගන්න. 1926 අමතන්න හෝ මානසික සෞඛ්‍ය උපදේශකයෙකු හමුවන්න.",
+            'severe': "ඔබේ ප්‍රතිචාර වලට අනුව බරපතල විශාද තත්වයක් පෙන්නුම් කරයි. කරුණාකර වහාම සහාය ලබා ගන්න. දැන්ම 1926 අමතන්න හෝ වහාම මානසික සෞඛ්‍ය උපදේශකයෙකු හමුවන්න."
+        },
+        'ta': {
+            'minimal': "உங்கள் பதில்கள் குறைந்தபட்ச மனச்சோர்வு அறிகுறிகளைக் காட்டுகின்றன. உங்கள் மன ஆரோக்கியத்தைத் தொடர்ந்து கண்காணித்து வரவும்.",
+            'mild': "உங்கள் பதில்கள் லேசான மனச்சோர்வைக் காட்டுகின்றன. மனநல நிபுணருடன் பேசுவதைக் கருத்தில் கொள்ளவும்.",
+            'moderate': "உங்கள் பதில்கள் மிதமான மனச்சோர்வைக் காட்டுகின்றன. மனநல நிபுணருடன் பேச அல்லது 1926 ஐ அழைக்க பரிந்துரைக்கிறோம்.",
+            'moderately_severe': "உங்கள் பதில்கள் மிதமான கடுமையான மனச்சோர்வைக் காட்டுகின்றன. தயவுசெய்து உடனடி ஆதரவைக் கருத்தில் கொள்ளவும். 1926 ஐ அழைக்கவும் அல்லது மனநல நிபுணருடன் பேசவும்.",
+            'severe': "உங்கள் பதில்கள் கடுமையான மனச்சோர்வைக் காட்டுகின்றன. தயவுசெய்து உடனடி ஆதரவைப் பெறவும். இப்போது 1926 ஐ அழைக்கவும் அல்லது அவசரமாக மனநல நிபுணரைத் தொடர்பு கொள்ளவும்."
+        }
+    }
+
+    def interpret_score(self, score: int, language: str = 'en') -> Dict[str, any]:
         """
         Interpret PHQ-9 score and return severity level
         Returns: Dict with severity, level, recommendation
@@ -202,26 +229,27 @@ class PHQ9Service:
         if score < 0 or score > 27:
             raise ValueError("Score must be between 0 and 27")
         
+        lang = language.lower()[:2]
+        if lang not in self.RECOMMENDATIONS:
+            lang = 'en'
+
         if score <= 4:
             severity = "minimal"
             level = "low"
-            recommendation = "Your responses suggest minimal depression symptoms. Continue monitoring your mental health."
         elif score <= 9:
             severity = "mild"
             level = "moderate"
-            recommendation = "Your responses suggest mild depression. Consider speaking with a mental health professional."
         elif score <= 14:
             severity = "moderate"
             level = "high"
-            recommendation = "Your responses suggest moderate depression. We recommend speaking with a mental health professional or calling 1926."
         elif score <= 19:
             severity = "moderately_severe"
             level = "severe"
-            recommendation = "Your responses suggest moderately severe depression. Please consider immediate support. Call 1926 or speak with a mental health professional."
         else:  # 20-27
             severity = "severe"
             level = "severe"
-            recommendation = "Your responses suggest severe depression. Please seek immediate support. Call 1926 now or contact a mental health professional urgently."
+        
+        recommendation = self.RECOMMENDATIONS[lang].get(severity, self.RECOMMENDATIONS['en'][severity])
         
         return {
             "score": score,
@@ -231,15 +259,20 @@ class PHQ9Service:
             "needs_escalation": score >= 15  # Escalate if moderately severe or severe
         }
     
-    def get_next_question(self, current_question: int) -> Optional[int]:
+    def get_next_question(self, current_question: Optional[int]) -> Optional[int]:
         """Get next question number, or None if completed"""
+        if current_question is None:
+            return 1
         if current_question < 9:
             return current_question + 1
         return None
     
-    def is_complete(self, answers: Dict[int, int]) -> bool:
-        """Check if all questions are answered"""
-        return len(answers) == 9 and all(q in answers for q in range(1, 10))
+    def is_complete(self, answers: Dict[Any, int]) -> bool:
+        """Check if all 9 questions are answered (handles int or string keys)"""
+        for q in range(1, 10):
+            if q not in answers and str(q) not in answers:
+                return False
+        return True
     
     def format_question_with_options(self, question_num: int, language: str = 'en') -> str:
         """Format question with answer options for display"""

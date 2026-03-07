@@ -1,19 +1,23 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart'; // For AppColors
+import 'package:provider/provider.dart';
+import '../providers/language_provider.dart';
 
 class InstructionsScreen extends StatelessWidget {
   const InstructionsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final lp = context.watch<LanguageProvider>();
+
     return Scaffold(
       backgroundColor: AppColors.creamYellow,
       appBar: AppBar(
         backgroundColor: AppColors.creamYellow,
         elevation: 0,
-        title: const Text(
-          'Instructions',
-          style: TextStyle(
+        title: Text(
+          lp.translate('instructions'),
+          style: const TextStyle(
             color: Colors.black87,
             fontWeight: FontWeight.bold,
             fontSize: 24,
@@ -32,21 +36,21 @@ class InstructionsScreen extends StatelessWidget {
                 color: AppColors.darkGreen,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Welcome to Sahana!',
-                    style: TextStyle(
+                    lp.translate('welcome_sahana'),
+                    style: const TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
-                    'Your mental health companion designed to support you through your journey.',
-                    style: TextStyle(
+                    lp.translate('welcome_sahana_desc'),
+                    style: const TextStyle(
                       fontSize: 16,
                       color: Colors.white,
                       height: 1.5,
@@ -60,13 +64,13 @@ class InstructionsScreen extends StatelessWidget {
             // Getting Started Section
             _buildSectionCard(
               icon: Icons.play_circle_outline,
-              title: 'Getting Started',
+              title: lp.translate('getting_started'),
               color: AppColors.paleSageGreen,
               items: [
-                'Complete your daily mood check-in',
-                'Chat with Sahana, your AI companion',
-                'Track your weekly energy trends',
-                'Schedule calls with counselors when needed',
+                lp.translate('gs_item1'),
+                lp.translate('gs_item2'),
+                lp.translate('gs_item3'),
+                lp.translate('gs_item4'),
               ],
             ),
             const SizedBox(height: 16),
@@ -74,13 +78,13 @@ class InstructionsScreen extends StatelessWidget {
             // Mood Check-in Section
             _buildSectionCard(
               icon: Icons.mood,
-              title: 'Daily Mood Check-in',
+              title: lp.translate('daily_mood_checkin'),
               color: AppColors.lightPeach,
               items: [
-                'Select how you\'re feeling from the mood options',
-                'Be honest about your current emotional state',
-                'Your mood data helps Sahana understand you better',
-                'Regular check-ins help track your progress',
+                lp.translate('mood_item1'),
+                lp.translate('mood_item2'),
+                lp.translate('mood_item3'),
+                lp.translate('mood_item4'),
               ],
             ),
             const SizedBox(height: 16),
@@ -88,13 +92,13 @@ class InstructionsScreen extends StatelessWidget {
             // Chatting with Sahana Section
             _buildSectionCard(
               icon: Icons.chat_bubble_outline,
-              title: 'Chatting with Sahana',
+              title: lp.translate('chatting_sahana'),
               color: AppColors.veryLightBlue,
               items: [
-                'Tap the Sahana icon in the bottom navigation',
-                'Share your thoughts, feelings, or concerns',
-                'Sahana provides empathetic responses and support',
-                'Your conversations are private and secure',
+                lp.translate('chat_item1'),
+                lp.translate('chat_item2'),
+                lp.translate('chat_item3'),
+                lp.translate('chat_item4'),
               ],
             ),
             const SizedBox(height: 16),
@@ -102,13 +106,13 @@ class InstructionsScreen extends StatelessWidget {
             // Calls Section
             _buildSectionCard(
               icon: Icons.phone,
-              title: 'Making Calls',
+              title: lp.translate('making_calls'),
               color: AppColors.darkGreen,
               items: [
-                'Practice with AI for voice interactions',
-                'Schedule calls with professional counselors',
-                'Use emergency calls for urgent support',
-                'All calls are confidential and secure',
+                lp.translate('calls_item1'),
+                lp.translate('calls_item2'),
+                lp.translate('calls_item3'),
+                lp.translate('calls_item4'),
               ],
             ),
             const SizedBox(height: 16),
@@ -116,13 +120,13 @@ class InstructionsScreen extends StatelessWidget {
             // Privacy & Safety Section
             _buildSectionCard(
               icon: Icons.lock_outline,
-              title: 'Privacy & Safety',
+              title: lp.translate('privacy_safety'),
               color: AppColors.paleSageGreen,
               items: [
-                'All your data is encrypted and secure',
-                'Your conversations are confidential',
-                'You can delete your data at any time',
-                'We comply with mental health data protection standards',
+                lp.translate('privacy_item1'),
+                lp.translate('privacy_item2'),
+                lp.translate('privacy_item3'),
+                lp.translate('privacy_item4'),
               ],
             ),
             const SizedBox(height: 24),
@@ -143,15 +147,15 @@ class InstructionsScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.lightbulb_outline,
                         color: AppColors.darkGreen,
                         size: 28,
                       ),
                       const SizedBox(width: 12),
-                      const Text(
-                        'Tips for Best Experience',
-                        style: TextStyle(
+                      Text(
+                        lp.translate('tips_best_experience'),
+                        style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: Colors.black87,
@@ -160,10 +164,10 @@ class InstructionsScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _buildTipItem('Check in daily for accurate tracking'),
-                  _buildTipItem('Be open and honest with Sahana'),
-                  _buildTipItem('Review your weekly trends regularly'),
-                  _buildTipItem('Reach out to counselors when needed'),
+                  _buildTipItem(lp.translate('tips_item1')),
+                  _buildTipItem(lp.translate('tips_item2')),
+                  _buildTipItem(lp.translate('tips_item3')),
+                  _buildTipItem(lp.translate('tips_item4')),
                 ],
               ),
             ),
