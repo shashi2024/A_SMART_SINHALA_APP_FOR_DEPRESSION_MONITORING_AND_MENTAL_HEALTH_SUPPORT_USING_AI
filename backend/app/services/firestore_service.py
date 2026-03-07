@@ -363,75 +363,147 @@ class FirestoreService:
     # ========== ADMIN DASHBOARD OPERATIONS ==========
     
     def get_user_statistics(self, user_id: str) -> Dict:
-        """Get user statistics for dashboard including mood-based risk"""
-        # Get all sessions
+        """Get user statistics for dashboard including mood-based risk (Optimized)"""
+        # 1. Fetch sessions once
         sessions = self.get_user_sessions(user_id)
         total_sessions = len(sessions)
         
-        # Get all mood check-ins (not just last 7 days for complete statistics)
-        mood_checkins = self.get_user_mood_checkins(
-            user_id=user_id,
-            limit=200  # Get more mood check-ins for better statistics
-        )
+        # 2. Fetch all mood check-ins once (limit 200)
+        mood_checkins = self.get_user_mood_checkins(user_id=user_id, limit=200)
         
-        # Get recent mood check-ins (last 7 days) for risk calculation
+        # 3. Filter recent mood check-ins (last 7 days) from the already fetched list
         from datetime import timedelta
-        seven_days_ago = (datetime.utcnow() - timedelta(days=7)).date().isoformat()
-        recent_mood_checkins = self.get_user_mood_checkins(
-            user_id=user_id,
-            limit=50,
-            start_date=seven_days_ago
-        )
+        seven_days_dt = (datetime.utcnow() - timedelta(days=7))
         
-        # Calculate average depression score correctly (only count sessions with scores)
+        def to_datetime_helper(val):
+            from datetime import timezone
+            if not val: return datetime.min.replace(tzinfo=timezone.utc)
+            if isinstance(val, datetime):
+                return val.replace(tzinfo=timezone.utc) if val.tzinfo is None else val.astimezone(timezone.utc)
+            if hasattr(val, 'timestamp'):
+                try: return datetime.fromtimestamp(val.timestamp(), tz=timezone.utc)
+                except: return datetime.min.replace(tzinfo=timezone.utc)
+            if isinstance(val, str):
+                try:
+                    dt = datetime.fromisoformat(val.replace('Z', '+00:00'))
+                    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+                except: return datetime.min.replace(tzinfo=timezone.utc)
+            return datetime.min.replace(tzinfo=timezone.utc)
+
+        seven_days_ago_utc = seven_days_dt.replace(tzinfo=None) # Comparison depends on how they are stored
+        
+        recent_mood_checkins = [
+            m for m in mood_checkins 
+            if to_datetime_helper(m.get('created_at')).replace(tzinfo=None) >= seven_days_ago_utc
+        ]
+        
+        # Calculate average depression score
         avg_score = 0.0
         if sessions:
             scores_with_values = [s.get('depression_score') for s in sessions if s.get('depression_score') is not None]
             if scores_with_values:
                 avg_score = sum(scores_with_values) / len(scores_with_values)
         
-        # Calculate risk level including mood data
-        risk_level = 'low'
-        last_activity = None
+        # Get user record
+        user = self.get_user_by_id(user_id)
+        user_last_activity = user.get('last_activity') if user else None
         
+        latest_activity_dt = to_datetime_helper(user_last_activity)
+        last_activity = user_last_activity
+
         if sessions:
-            last_session = max(sessions, key=lambda s: s.get('start_time', datetime.min))
-            session_risk = last_session.get('risk_level', 'low')
-            last_activity = last_session.get('start_time')
+            last_session = max(sessions, key=lambda s: to_datetime_helper(s.get('start_time')))
+            session_time = last_session.get('start_time')
+            if to_datetime_helper(session_time) > latest_activity_dt:
+                latest_activity_dt = to_datetime_helper(session_time)
+                last_activity = session_time
             
-            # Calculate mood-based risk from recent check-ins
+            session_risk = last_session.get('risk_level', 'low')
+            
+            # Fetch typing analysis once
+            typing_analyses = self.get_user_typing_analyses(user_id)
+            typing_risk = 'low'
+            if typing_analyses:
+                latest = typing_analyses[0]
+                typing_risk = latest.get('risk_level')
+                if not typing_risk:
+                    score = latest.get('depression_indicator', 0)
+                    if score >= 0.75: typing_risk = "severe"
+                    elif score >= 0.5: typing_risk = "high"
+                    elif score >= 0.25: typing_risk = "moderate"
+                    else: typing_risk = "low"
+            
             mood_risk = self._calculate_mood_risk_for_stats(recent_mood_checkins)
             
-            # Take the higher risk level
             risk_levels_order = ["low", "moderate", "high", "severe"]
             session_index = risk_levels_order.index(session_risk) if session_risk in risk_levels_order else 0
+            typing_index = risk_levels_order.index(typing_risk) if typing_risk in risk_levels_order else 0
             mood_index = risk_levels_order.index(mood_risk) if mood_risk in risk_levels_order else 0
-            final_risk_index = max(session_index, mood_index)
+            final_risk_index = max(session_index, typing_index, mood_index)
             risk_level = risk_levels_order[final_risk_index]
         else:
-            user = self.get_user_by_id(user_id)
-            # Use mood risk if no sessions
             risk_level = self._calculate_mood_risk_for_stats(recent_mood_checkins)
-            
-            # Set last activity to most recent mood check-in or user creation
             if mood_checkins:
-                # Get the most recent mood check-in
-                recent_checkin = max(mood_checkins, key=lambda m: m.get('created_at', datetime.min))
-                last_activity = recent_checkin.get('created_at')
-            else:
-                last_activity = user.get('created_at') if user else datetime.now()
+                recent_checkin = max(mood_checkins, key=lambda m: to_datetime_helper(m.get('created_at')))
+                checkin_time = recent_checkin.get('created_at')
+                if to_datetime_helper(checkin_time) > latest_activity_dt:
+                    latest_activity_dt = to_datetime_helper(checkin_time)
+                    last_activity = checkin_time
+            
+            if not last_activity and user:
+                last_activity = user.get('created_at')
         
+        # Format last_activity
+        last_activity_str = last_activity
+        if last_activity:
+            if hasattr(last_activity, 'isoformat'):
+                last_activity_str = last_activity.isoformat()
+                if not (last_activity_str.endswith('Z') or '+' in last_activity_str):
+                    last_activity_str += 'Z'
+            elif isinstance(last_activity, str) and last_activity:
+                if not (last_activity.endswith('Z') or '+' in last_activity):
+                    last_activity_str = last_activity + 'Z'
+
+        # Get latest PHQ-9 score and severity
+        latest_phq9 = self.get_latest_phq9_session(user_id)
+        
+        # Calculate consultation types
+        video_consultations = 0
+        clinic_consultations = 0
+        for s in sessions:
+            stype = s.get('session_type', 'chatbot')
+            if stype in ['voice', 'video', 'call']: video_consultations += 1
+            elif stype in ['clinic', 'in-person']: clinic_consultations += 1
+
         return {
             'total_sessions': total_sessions,
             'average_depression_score': avg_score,
             'risk_level': risk_level,
-            'last_activity': last_activity,
+            'last_activity': last_activity_str,
             'total_mood_checkins': len(mood_checkins),
-            'recent_mood_checkins': len(recent_mood_checkins)
+            'recent_mood_checkins': len(recent_mood_checkins),
+            'phq9_score': latest_phq9.get('phq9_score') if latest_phq9 else None,
+            'phq9_severity': latest_phq9.get('phq9_severity') if latest_phq9 else None,
+            'video_consultations': video_consultations,
+            'clinic_consultations': clinic_consultations,
+            'sessions': sessions # Return sessions for today's appointment check
         }
+
+    def update_user_fake_status(self, user_id: str, fake_assessment: Dict):
+        """Persist fake detection result on the user profile to avoid frequent recalculation"""
+        updates = {
+            'fake_status': {
+                'is_fake': fake_assessment.get('is_fake', False),
+                'fake_score': fake_assessment.get('fake_score', 0.0),
+                'last_analyzed': firestore.SERVER_TIMESTAMP,
+                'batch_type': fake_assessment.get('batch_type', 'typing')
+            }
+        }
+        self.update_user(user_id, updates)
     
     def _calculate_mood_risk_for_stats(self, mood_checkins: list) -> str:
         """Calculate risk level based on mood check-ins for statistics"""
+        from datetime import datetime, timezone
         if not mood_checkins:
             return "low"
         
@@ -620,6 +692,78 @@ class FirestoreService:
         checkins.sort(key=lambda x: x.get('created_at', datetime.min), reverse=True)
         
         return checkins[:limit]
+
+    # ========== BIO-FEEDBACK OPERATIONS ==========
+    
+    def create_biofeedback_analysis(self, analysis_data: Dict) -> str:
+        """Create biofeedback analysis record"""
+        analysis_ref = self.db.collection('biofeedback_analyses').document()
+        analysis_data['id'] = analysis_ref.id
+        analysis_data['created_at'] = firestore.SERVER_TIMESTAMP
+        analysis_ref.set(analysis_data)
+        return analysis_ref.id
+    
+    def get_user_biofeedback_analyses(self, user_id: str, limit: int = 10) -> List[Dict]:
+        """Get latest biofeedback analyses for a user"""
+        try:
+            analyses_ref = self.db.collection('biofeedback_analyses')
+            query = analyses_ref.where('user_id', '==', user_id)
+            
+            analyses = []
+            for doc in query.stream():
+                data = doc.to_dict()
+                if data:
+                    analyses.append(data)
+            
+            # Sort by created_at descending
+            def get_created_time(a):
+                created_at = a.get('created_at')
+                if isinstance(created_at, datetime):
+                    return created_at
+                elif hasattr(created_at, 'timestamp'):
+                    return datetime.fromtimestamp(created_at.timestamp())
+                return datetime.min
+                
+            analyses.sort(key=get_created_time, reverse=True)
+            return analyses[:limit]
+        except Exception as e:
+            print(f"[ERROR] Failed to get biofeedback analyses: {e}")
+            return []
+
+    def get_latest_phq9_session(self, user_id: str) -> Optional[Dict]:
+        """Get the most recent completed PHQ-9 session for a user"""
+        try:
+            sessions_ref = self.db.collection('sessions')
+            query = sessions_ref.where('user_id', '==', user_id).where('session_type', '==', 'phq9')
+            
+            sessions = []
+            for doc in query.stream():
+                data = doc.to_dict()
+                if data and 'phq9_score' in data: # Only completed ones
+                    sessions.append(data)
+            
+            if not sessions:
+                return None
+                
+            # Sort by started_at descending
+            def get_start_time(s):
+                st = s.get('start_time')
+                if isinstance(st, datetime):
+                    return st
+                elif hasattr(st, 'timestamp'):
+                    return datetime.fromtimestamp(st.timestamp())
+                elif isinstance(st, str):
+                    try:
+                        return datetime.fromisoformat(st.replace('Z', '+00:00'))
+                    except:
+                        pass
+                return datetime.min
+                
+            sessions.sort(key=get_start_time, reverse=True)
+            return sessions[0]
+        except Exception as e:
+            print(f"[ERROR] Failed to get latest PHQ-9 session: {e}")
+            return None
 
 
 

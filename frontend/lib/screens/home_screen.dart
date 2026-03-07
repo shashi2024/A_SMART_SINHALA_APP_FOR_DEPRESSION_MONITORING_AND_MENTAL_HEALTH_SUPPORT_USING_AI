@@ -10,6 +10,9 @@ import 'profile_screen.dart';
 import 'notification_screen.dart';
 import 'instructions_screen.dart';
 import 'login_screen.dart'; // For AppColors and logo
+import '../providers/language_provider.dart';
+
+import '../services/permission_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,7 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   String? _selectedMood;
   bool _isSavingMood = false;
-  final ApiService _apiService = ApiService();
+  late ApiService _apiService;
   final LocationService _locationService = LocationService();
   final ScrollController _moodScrollController = ScrollController();
   bool _showLeftArrow = false;
@@ -35,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
     'ta': 'தமிழ்',
   };
 
-  final List<String> _moods = ['Excited', 'Happy', 'Calm', 'Neutral', 'Anxious', 'Sad'];
+  final List<String> _moodKeys = ['excited', 'happy', 'calm', 'neutral', 'anxious', 'sad'];
 
   @override
   void dispose() {
@@ -56,6 +59,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _apiService = ApiService();
+    
     // Set API token from auth provider
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     _apiService.setToken(authProvider.token);
@@ -66,8 +71,10 @@ class _HomeScreenState extends State<HomeScreen> {
     // Load saved language preference
     _loadLanguagePreference();
     
-    // Initialize location tracking after widget is built
+    // Request permissions and initialize location tracking after widget is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final permissionService = Provider.of<PermissionService>(context, listen: false);
+      permissionService.requestAllPermissions();
       _initializeLocationTracking();
     });
   }
@@ -82,20 +89,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final phoneNumber = user?.phoneNumber;
     
     if (phoneNumber != null && phoneNumber.isNotEmpty) {
+      print('Initializing location tracking for: $phoneNumber');
       try {
-        // Request location permission and start tracking
-        final hasPermission = await _locationService.requestPermission();
-        if (hasPermission) {
-          await _locationService.startTracking(phoneNumber: phoneNumber);
-          debugPrint('Location tracking started for: $phoneNumber');
-        } else {
-          debugPrint('Location permission not granted');
-        }
+        await _locationService.startTracking(phoneNumber: phoneNumber);
+        print('SUCCESS: Location tracking started for: $phoneNumber');
       } catch (e) {
-        debugPrint('Failed to start location tracking: $e');
+        print('FAILURE: Error starting location tracking for $phoneNumber: $e');
       }
     } else {
-      debugPrint('Phone number not available for location tracking. User phone: $phoneNumber');
+      print('WARNING: Phone number not found in user profile. authProvider.user is ${authProvider.user != null ? 'present' : 'null'}. Username is ${authProvider.user?.username ?? 'null'}.');
     }
   }
   
@@ -111,12 +113,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   
   Future<void> _setLanguage(String langCode) async {
-    setState(() {
-      _selectedLanguage = langCode;
-    });
-    // Save preference
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('app_language', langCode);
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    await languageProvider.setLanguage(langCode);
+    
     // Update CallProvider language
     final callProvider = Provider.of<CallProvider>(context, listen: false);
     callProvider.setLanguage(langCode);
@@ -125,6 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
+    final languageProvider = Provider.of<LanguageProvider>(context);
     final username = authProvider.user?.username ?? 'User';
     // Extract name from email if username is an email, otherwise use the name part
     String displayName = username;
@@ -141,14 +141,14 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: AppColors.creamYellow,
       body: SafeArea(
         child: _selectedIndex == 0
-            ? _buildHomeContent(displayName)
-            : _buildOtherScreen(),
+            ? _buildHomeContent(displayName, languageProvider)
+            : _buildOtherScreen(languageProvider),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
+      bottomNavigationBar: _buildBottomNavigationBar(languageProvider),
     );
   }
 
-  Widget _buildHomeContent(String firstName) {
+  Widget _buildHomeContent(String firstName, LanguageProvider lp) {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
       child: Column(
@@ -160,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           // Greeting Section
           Text(
-            'Hi $firstName!',
+            '${lp.translate('hi')} $firstName!',
             style: const TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.bold,
@@ -181,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const Icon(Icons.language, color: AppColors.darkGreen, size: 20),
                       const SizedBox(width: 4),
                       Text(
-                        _languageNames[_selectedLanguage] ?? 'EN',
+                        _languageNames[lp.currentLanguage] ?? 'EN',
                         style: const TextStyle(
                           color: AppColors.darkGreen,
                           fontSize: 12,
@@ -197,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     value: 'en',
                     child: Row(
                       children: [
-                        Icon(Icons.check, color: _selectedLanguage == 'en' ? Colors.green : Colors.transparent, size: 20),
+                        Icon(Icons.check, color: lp.currentLanguage == 'en' ? Colors.green : Colors.transparent, size: 20),
                         const SizedBox(width: 8),
                         const Text('English'),
                       ],
@@ -207,7 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     value: 'si',
                     child: Row(
                       children: [
-                        Icon(Icons.check, color: _selectedLanguage == 'si' ? Colors.green : Colors.transparent, size: 20),
+                        Icon(Icons.check, color: lp.currentLanguage == 'si' ? Colors.green : Colors.transparent, size: 20),
                         const SizedBox(width: 8),
                         const Text('සිංහල (Sinhala)'),
                       ],
@@ -217,7 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     value: 'ta',
                     child: Row(
                       children: [
-                        Icon(Icons.check, color: _selectedLanguage == 'ta' ? Colors.green : Colors.transparent, size: 20),
+                        Icon(Icons.check, color: lp.currentLanguage == 'ta' ? Colors.green : Colors.transparent, size: 20),
                         const SizedBox(width: 8),
                         const Text('தமிழ் (Tamil)'),
                       ],
@@ -229,7 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'How are you feeling today?',
+            lp.translate('feeling_today'),
             style: TextStyle(
               fontSize: 18,
               color: Colors.grey[700],
@@ -248,18 +248,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   controller: _moodScrollController,
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
-                  itemCount: _moods.length,
+                  itemCount: _moodKeys.length,
                   itemBuilder: (context, index) {
-                    final mood = _moods[index];
-                    final isSelected = _selectedMood == mood;
+                    final moodKey = _moodKeys[index];
+                    final moodName = lp.translate(moodKey);
+                    final isSelected = _selectedMood == moodKey;
                     return Padding(
                       padding: EdgeInsets.only(
                         left: index == 0 ? 0 : 12.0,
-                        right: index == _moods.length - 1 ? 40.0 : 12.0,
+                        right: index == _moodKeys.length - 1 ? 40.0 : 12.0,
                       ),
                       child: ElevatedButton(
                         onPressed: _isSavingMood ? null : () async {
-                          final newMood = isSelected ? null : mood;
+                          final newMood = isSelected ? null : moodKey;
                           setState(() {
                             _selectedMood = newMood;
                           });
@@ -282,7 +283,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           elevation: isSelected ? 2 : 0,
                         ),
-                        child: Text(mood),
+                        child: Text(moodName),
                       ),
                     );
                   },
@@ -394,17 +395,17 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'I\'m Sahana.',
-                  style: TextStyle(
+                Text(
+                  lp.translate('hi_im_sahana'),
+                  style: const TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Lets get started with a quick mood check.',
+                Text(
+                  lp.translate('sahana_start'),
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.white,
@@ -426,8 +427,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Check in',
+                  child: Text(
+                    lp.translate('check_in'),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -470,7 +471,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Feeling Lonely ?',
+                        lp.translate('feeling_lonely'),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -479,7 +480,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Hi, I\'m Sahana',
+                        lp.translate('hi_im_sahana'),
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[700],
@@ -492,6 +493,185 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           
+          const SizedBox(height: 20),
+
+          // Bio-Feedback Assessment Card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20.0),
+            decoration: BoxDecoration(
+              color: AppColors.lightPeach,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.darkGreen.withOpacity(0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.bolt, color: AppColors.darkGreen, size: 28),
+                    const SizedBox(width: 12),
+                    Text(
+                      lp.translate('bio_feedback_test'),
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  lp.translate('bio_feedback_desc'),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/bio-feedback');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.darkGreen,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(lp.translate('start_assessment')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 20),
+
+          // PHQ-9 Mental Health Card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20.0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.darkGreen.withOpacity(0.3)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  spreadRadius: 1,
+                  blurRadius: 5,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.psychology, color: AppColors.darkGreen, size: 28),
+                    const SizedBox(width: 12),
+                    Text(
+                      lp.translate('mental_health_assessment'),
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  lp.translate('phq9_desc'),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/phq9');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.darkGreen,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(lp.translate('start_phq9')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Keystroke Diagnostic Card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20.0),
+            decoration: BoxDecoration(
+              color: AppColors.paleSageGreen.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.darkGreen.withOpacity(0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.keyboard, color: AppColors.darkGreen, size: 28),
+                    const SizedBox(width: 12),
+                    Text(
+                      lp.translate('typing_rhythm_test'),
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  lp.translate('typing_rhythm_desc'),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/keystroke');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.darkGreen,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(lp.translate('start_typing')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           const SizedBox(height: 32),
           
           // Energy Trend Section
@@ -502,7 +682,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'This week\'s energy trend:',
+                    lp.translate('energy_trend'),
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.grey[700],
@@ -519,8 +699,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Steady',
+              Text(
+                lp.translate('steady'),
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
@@ -560,7 +740,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildOtherScreen() {
+  Widget _buildOtherScreen(LanguageProvider lp) {
     if (_selectedIndex == 1) {
       // Instructions screen
       return const InstructionsScreen();
@@ -579,7 +759,7 @@ class _HomeScreenState extends State<HomeScreen> {
       } else {
         displayName = username.split(' ').first;
       }
-      return _buildHomeContent(displayName);
+      return _buildHomeContent(displayName, lp);
     } else if (_selectedIndex == 3) {
       // Notifications screen
       return const NotificationScreen();
@@ -590,7 +770,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return const SizedBox();
   }
 
-  Widget _buildBottomNavigationBar() {
+  Widget _buildBottomNavigationBar(LanguageProvider lp) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -613,15 +793,15 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               // Home
-              _buildNavItem(Icons.home, 0, 'Home'),
+              _buildNavItem(Icons.home, 0, lp.translate('home')),
               // Instructions
-              _buildNavItem(Icons.menu_book, 1, 'Instructions'),
+              _buildNavItem(Icons.menu_book, 1, lp.translate('instructions')),
               // Chatbot (bigger centered icon)
               _buildChatbotNavItem(),
               // Notifications
-              _buildNavItem(Icons.notifications_outlined, 3, 'Notifications'),
+              _buildNavItem(Icons.notifications_outlined, 3, lp.translate('notifications')),
               // Profile
-              _buildNavItem(Icons.person_outline, 4, 'Profile'),
+              _buildNavItem(Icons.person_outline, 4, lp.translate('profile')),
             ],
           ),
         ),

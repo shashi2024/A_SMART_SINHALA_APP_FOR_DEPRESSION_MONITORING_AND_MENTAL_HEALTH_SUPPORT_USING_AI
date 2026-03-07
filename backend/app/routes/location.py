@@ -143,6 +143,7 @@ async def get_all_locations(
                         'longitude': last_location.get('longitude'),
                         'accuracy': last_location.get('accuracy'),
                         'last_updated': last_location.get('timestamp') or user_data.get('last_location_update', 'N/A'),
+                        'last_activity': user_data.get('last_activity'), # Global activity field
                         'address': None  # Can be geocoded later
                     }
                     locations.append(location_info)

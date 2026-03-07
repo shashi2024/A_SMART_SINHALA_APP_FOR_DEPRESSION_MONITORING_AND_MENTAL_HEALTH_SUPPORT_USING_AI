@@ -28,6 +28,7 @@ import TwitterIcon from '@mui/icons-material/Twitter';
 import SearchIcon from '@mui/icons-material/Search';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import FolderIcon from '@mui/icons-material/Folder';
+import PsychologyIcon from '@mui/icons-material/Psychology';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 
@@ -48,7 +49,7 @@ function Layout() {
   const location = useLocation();
   const { logout, user, checkAdminStatus } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
-  
+
   // Fetch user info on mount
   useEffect(() => {
     if (!user) {
@@ -75,7 +76,7 @@ function Layout() {
 
     return () => clearInterval(interval);
   }, [user]);
-  
+
   // Refresh when navigating to/from notifications page
   useEffect(() => {
     if (location.pathname === '/notifications' || location.pathname === '/connect') {
@@ -93,6 +94,7 @@ function Layout() {
     { text: 'Location track', icon: <TimelineIcon />, path: '/location-track' },
     { text: 'Digital twin', icon: <ChatBubbleIcon />, path: '/digital-twin' },
     { text: 'X (Twitter) Analysis', icon: <TwitterIcon />, path: '/twitter-analysis' },
+    { text: 'Bio-Feedback Analysis', icon: <PsychologyIcon />, path: '/bio-feedback' },
 
     // Only show User Management for full admins (not sub-admins, doctors, or nurses)
     ...(user?.is_admin ? [{ text: 'User Management', icon: <PeopleIcon />, path: '/user-management' }] : []),

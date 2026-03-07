@@ -1,5 +1,5 @@
+import 'dart:async';
 import 'package:geolocator/geolocator.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'api_service.dart';
 
 class LocationService {
@@ -103,7 +103,7 @@ class LocationService {
   /// Start continuous location tracking
   Future<void> startTracking({
     required String phoneNumber,
-    Duration interval = const Duration(minutes: 5),
+    Duration interval = const Duration(minutes: 3),
   }) async {
     if (_isTracking) {
       print('Location tracking is already active');
@@ -121,11 +121,20 @@ class LocationService {
     // Update location immediately
     await updateLocation(phoneNumber: phoneNumber);
 
-    // Set up periodic updates
+    // Set up periodic updates via Timer (ensures updates even if stationary)
+    Timer.periodic(interval, (timer) async {
+      if (!_isTracking) {
+        timer.cancel();
+        return;
+      }
+      await updateLocation(phoneNumber: phoneNumber);
+    });
+
+    // Also listen to position stream for displacement updates
     Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 100, // Update every 100 meters
+        distanceFilter: 50, // Reduced filter for better sensitivity
       ),
     ).listen((Position position) async {
       if (_isTracking) {

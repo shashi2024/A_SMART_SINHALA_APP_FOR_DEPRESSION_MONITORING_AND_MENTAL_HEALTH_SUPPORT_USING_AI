@@ -245,6 +245,18 @@ async def login(user_data: UserLogin):
         except Exception as e:
             print(f"[WARNING] Failed to migrate password hash: {e}")
             # Continue with login even if migration fails
+            
+    # Update last activity to mark user as online
+    try:
+        user_id = user.get('id') or user.get('user_id')
+        if user_id:
+            from datetime import datetime
+            firestore_service.update_user(user_id, {
+                'last_activity': datetime.utcnow().isoformat() + 'Z'
+            })
+            print(f"[INFO] Updated last_activity for user: {user.get('username')}")
+    except Exception as e:
+        print(f"[WARNING] Failed to update last_activity: {e}")
     
     # Use the username from the user document for the token (not the login identifier)
     username_for_token = user.get('username')
@@ -260,6 +272,24 @@ async def login(user_data: UserLogin):
     )
     
     return {"access_token": access_token, "token_type": "bearer"}
+
+@router.post("/logout")
+async def logout(current_user: dict = Depends(get_current_user)):
+    """Logout user and mark as offline"""
+    try:
+        user_id = current_user.get('id') or current_user.get('user_id')
+        if user_id:
+            # Set last activity to 10 minutes ago to ensure they show as offline
+            offline_time = (datetime.utcnow() - timedelta(minutes=10)).isoformat() + 'Z'
+            firestore_service.update_user(user_id, {
+                'last_activity': offline_time
+            })
+            print(f"[INFO] User logged out and marked offline: {current_user.get('username')}")
+        return {"message": "Logged out successfully"}
+    except Exception as e:
+        print(f"[WARNING] Logout status update failed: {e}")
+        # Still return success as the client-side logout should proceed
+        return {"message": "Logged out"}
 
 @router.get("/me")
 async def get_current_user_info(current_user: dict = Depends(get_current_user)):

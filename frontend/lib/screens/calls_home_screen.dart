@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/call_provider.dart';
+import '../providers/language_provider.dart';
 import 'call_screen_simple.dart';
 
 class CallsHomeScreen extends StatefulWidget {
@@ -24,9 +25,10 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final lp = context.watch<LanguageProvider>();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Calls'),
+        title: Text(lp.translate('calls')),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -41,8 +43,8 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          _buildCallOptionsTab(),
-          _buildCallHistoryTab(),
+          _buildCallOptionsTab(lp),
+          _buildCallHistoryTab(lp),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -52,29 +54,29 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
             _selectedIndex = index;
           });
         },
-        items: const [
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.phone),
-            label: 'New Call',
+            icon: const Icon(Icons.phone),
+            label: lp.translate('new_call'),
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'History',
+            icon: const Icon(Icons.history),
+            label: lp.translate('history'),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCallOptionsTab() {
+  Widget _buildCallOptionsTab(LanguageProvider lp) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Start a Call',
-            style: TextStyle(
+          Text(
+            lp.translate('start_a_call'),
+            style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
             ),
@@ -84,10 +86,10 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
           // AI Practice Call
           _buildCallOptionCard(
             icon: Icons.smart_toy,
-            title: 'AI Practice Call',
-            subtitle: 'Practice speaking with our AI assistant',
+            title: lp.translate('practice_ai'),
+            subtitle: lp.translate('practice_ai_desc'),
             color: Colors.blue,
-            onTap: () => _startAIPracticeCall(),
+            onTap: () => _startAIPracticeCall(lp),
           ),
           
           const SizedBox(height: 16),
@@ -95,10 +97,10 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
           // Counselor Call
           _buildCallOptionCard(
             icon: Icons.people,
-            title: 'Call a Counselor',
-            subtitle: 'Connect with a professional counselor',
+            title: lp.translate('call_counselor'),
+            subtitle: lp.translate('connect_counselor_desc'),
             color: Colors.green,
-            onTap: () => _showCounselorSelection(),
+            onTap: () => _showCounselorSelection(lp),
           ),
           
           const SizedBox(height: 16),
@@ -106,10 +108,10 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
           // Emergency Call
           _buildCallOptionCard(
             icon: Icons.emergency,
-            title: 'Emergency Call',
-            subtitle: 'Immediate support in crisis situations',
+            title: lp.translate('emergency_call'),
+            subtitle: lp.translate('emergency_desc'),
             color: Colors.red,
-            onTap: () => _startEmergencyCall(),
+            onTap: () => _startEmergencyCall(lp),
           ),
         ],
       ),
@@ -171,7 +173,7 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
     );
   }
 
-  Widget _buildCallHistoryTab() {
+  Widget _buildCallHistoryTab(LanguageProvider lp) {
     return Consumer<CallProvider>(
       builder: (context, callProvider, child) {
         if (callProvider.callHistory.isEmpty) {
@@ -186,7 +188,7 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'No call history',
+                  lp.translate('no_call_history'),
                   style: TextStyle(
                     fontSize: 18,
                     color: Colors.grey[600],
@@ -202,36 +204,36 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
           itemCount: callProvider.callHistory.length,
           itemBuilder: (context, index) {
             final call = callProvider.callHistory[index];
-            return _buildCallHistoryItem(call);
+            return _buildCallHistoryItem(call, lp);
           },
         );
       },
     );
   }
 
-  Widget _buildCallHistoryItem(Map<String, dynamic> call) {
+  Widget _buildCallHistoryItem(Map<String, dynamic> call, LanguageProvider lp) {
     final callType = call['call_type'] ?? 'unknown';
     final status = call['status'] ?? 'ended';
     final duration = call['duration'] ?? 0;
     final startedAt = call['started_at'] ?? '';
 
-    String callTypeLabel = 'Call';
+    String callTypeLabel = lp.translate('calls');
     IconData icon = Icons.phone;
     Color color = Colors.blue;
 
     switch (callType) {
       case 'ai_practice':
-        callTypeLabel = 'AI Practice';
+        callTypeLabel = lp.translate('practice_ai');
         icon = Icons.smart_toy;
         color = Colors.blue;
         break;
       case 'counselor':
-        callTypeLabel = 'Counselor';
+        callTypeLabel = lp.translate('counselor');
         icon = Icons.people;
         color = Colors.green;
         break;
       case 'emergency':
-        callTypeLabel = 'Emergency';
+        callTypeLabel = lp.translate('emergency_call');
         icon = Icons.emergency;
         color = Colors.red;
         break;
@@ -246,11 +248,11 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
         ),
         title: Text(callTypeLabel),
         subtitle: Text(
-          'Duration: ${_formatDuration(duration)}\n'
-          'Status: ${status}',
+          '${lp.translate('duration')}: ${_formatDuration(duration, lp)}\n'
+          '${lp.translate('status')}: ${status}',
         ),
         trailing: Text(
-          _formatDate(startedAt),
+          _formatDate(startedAt, lp),
           style: TextStyle(
             fontSize: 12,
             color: Colors.grey[600],
@@ -260,7 +262,7 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
     );
   }
 
-  String _formatDuration(int seconds) {
+  String _formatDuration(int seconds, LanguageProvider lp) {
     if (seconds < 60) {
       return '${seconds}s';
     }
@@ -269,18 +271,18 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
     return '${minutes}m ${secs}s';
   }
 
-  String _formatDate(String dateStr) {
+  String _formatDate(String dateStr, LanguageProvider lp) {
     try {
       final date = DateTime.parse(dateStr);
       final now = DateTime.now();
       final difference = now.difference(date);
 
       if (difference.inDays == 0) {
-        return 'Today';
+        return lp.translate('today');
       } else if (difference.inDays == 1) {
-        return 'Yesterday';
+        return lp.translate('yesterday');
       } else if (difference.inDays < 7) {
-        return '${difference.inDays} days ago';
+        return '${difference.inDays} ${lp.translate('days_ago')}';
       } else {
         return '${date.day}/${date.month}/${date.year}';
       }
@@ -289,7 +291,7 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
     }
   }
 
-  Future<void> _startAIPracticeCall() async {
+  Future<void> _startAIPracticeCall(LanguageProvider lp) async {
     final callProvider = Provider.of<CallProvider>(context, listen: false);
     
     try {
@@ -313,19 +315,19 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to start call: $e')),
+          SnackBar(content: Text('${lp.translate('failed_start_call')}: $e')),
         );
       }
     }
   }
 
-  Future<void> _showCounselorSelection() async {
+  Future<void> _showCounselorSelection(LanguageProvider lp) async {
     final callProvider = Provider.of<CallProvider>(context, listen: false);
     
     if (callProvider.availableCounselors.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No counselors available at the moment'),
+        SnackBar(
+          content: Text(lp.translate('no_counselors')),
         ),
       );
       return;
@@ -338,9 +340,9 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Select a Counselor',
-              style: TextStyle(
+            Text(
+              lp.translate('select_counselor'),
+              style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
@@ -351,14 +353,14 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
                 leading: const CircleAvatar(
                   child: Icon(Icons.person),
                 ),
-                title: Text(counselor['name'] ?? 'Counselor'),
+                title: Text(counselor['name'] ?? lp.translate('counselor')),
                 subtitle: Text(
-                  'Languages: ${(counselor['languages'] as List?)?.join(', ') ?? 'N/A'}',
+                  '${lp.translate('languages')}: ${(counselor['languages'] as List?)?.join(', ') ?? 'N/A'}',
                 ),
                 trailing: const Icon(Icons.phone),
                 onTap: () {
                   Navigator.pop(context);
-                  _startCounselorCall(counselor['id']);
+                  _startCounselorCall(counselor['id'], lp);
                 },
               );
             }).toList(),
@@ -368,7 +370,7 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
     );
   }
 
-  Future<void> _startCounselorCall(String counselorId) async {
+  Future<void> _startCounselorCall(String counselorId, LanguageProvider lp) async {
     final callProvider = Provider.of<CallProvider>(context, listen: false);
     
     try {
@@ -392,28 +394,28 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to start call: $e')),
+          SnackBar(content: Text('${lp.translate('failed_start_call')}: $e')),
         );
       }
     }
   }
 
-  Future<void> _startEmergencyCall() async {
+  Future<void> _startEmergencyCall(LanguageProvider lp) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Emergency Call'),
-        content: const Text(
-          'This will connect you to emergency support. Continue?',
+        title: Text(lp.translate('emergency_call')),
+        content: Text(
+          lp.translate('emergency_confirm_msg'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(lp.translate('cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Call', style: TextStyle(color: Colors.red)),
+            child: Text(lp.translate('emergency_call'), style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -442,11 +444,10 @@ class _CallsHomeScreenState extends State<CallsHomeScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to start emergency call: $e')),
+            SnackBar(content: Text('${lp.translate('failed_emergency_call')}: $e')),
           );
         }
       }
     }
   }
 }
-

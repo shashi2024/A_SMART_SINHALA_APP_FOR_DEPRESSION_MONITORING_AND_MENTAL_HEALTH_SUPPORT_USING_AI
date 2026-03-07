@@ -1,38 +1,33 @@
 import json
 import os
 from typing import Any
-
 from dotenv import load_dotenv
-from openai import OpenAI
-
+from google import genai
+from google.genai import types
 
 load_dotenv()
 
-# Lazy initialization to avoid startup errors if API key is missing
+# Lazy initialization
 _client = None
 
-
 def get_client():
-    """Get or create OpenAI client"""
+    """Get or create Gemini client"""
     global _client
     if _client is None:
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            raise ValueError("OPENAI_API_KEY environment variable is not set")
-        _client = OpenAI(api_key=api_key)
+            raise ValueError("GEMINI_API_KEY environment variable is not set")
+        _client = genai.Client(api_key=api_key)
     return _client
 
-
 def human_voice_stress(audio_file: Any) -> dict:
-    """Analyze an audio file-like object and return a stress score (0-10) and level (low/medium/high)."""
+    """Analyze an audio file using Google Gemini and return a stress score and level."""
     try:
-        # Get the file object from FastAPI UploadFile
+        # Get the file content from FastAPI UploadFile or file-like object
         if hasattr(audio_file, "file"):
             file_obj = audio_file.file
-            filename = getattr(audio_file, "filename", "audio.wav")
         elif hasattr(audio_file, "read"):
             file_obj = audio_file
-            filename = getattr(audio_file, "name", "audio.wav")
         else:
             return {
                 "status": False,
@@ -45,41 +40,38 @@ def human_voice_stress(audio_file: Any) -> dict:
         if hasattr(file_obj, "seek"):
             file_obj.seek(0)
 
-        client = get_client()
-        
-        # ✅ FIX: OpenAI expects a tuple (filename, file_content, content_type)
-        # Read the file content
         file_content = file_obj.read()
         
-        # Reset position if needed for future reads
+        # Reset position
         if hasattr(file_obj, "seek"):
             file_obj.seek(0)
-        
-        # Create a tuple with filename and content
-        file_tuple = (filename, file_content)
-        
-        transcript = client.audio.transcriptions.create(
-            model="whisper-1",
-            file=file_tuple,
-            response_format="text",
-        )
+
+        content_type = getattr(audio_file, "content_type", "audio/mpeg")
+        client = get_client()
 
         prompt = (
-            "You are a voice-stress analyst. Given only the transcript text, infer the stress level. "
-            "Return JSON with keys: score (integer 0-10, higher means more stress) and level "
-            "(one of: low, medium, high). Respond with JSON only."
+            "You are a voice-stress analyst. Analyze the emotional tone and stress level in this audio recording. "
+            "Return ONLY a JSON object with two keys: 'score' (an integer from 0 to 10, where 10 is maximum stress) "
+            "and 'level' (one of: 'low', 'medium', 'high'). "
+            "Do not include any other text or markdown formatting. Just the raw JSON object."
         )
 
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": f"Transcript:\n{transcript}"},
-            ],
-            temperature=0,
+        response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=[
+                types.Part.from_bytes(data=file_content, mime_type=content_type),
+                prompt
+            ]
         )
 
-        raw_content = completion.choices[0].message.content
+        raw_content = response.text.strip()
+        # Remove potential markdown code blocks
+        if raw_content.startswith("```"):
+            import re
+            json_match = re.search(r'\{.*\}', raw_content, re.DOTALL)
+            if json_match:
+                raw_content = json_match.group()
+
         parsed = json.loads(raw_content)
 
         score = float(parsed.get("score", 0))
