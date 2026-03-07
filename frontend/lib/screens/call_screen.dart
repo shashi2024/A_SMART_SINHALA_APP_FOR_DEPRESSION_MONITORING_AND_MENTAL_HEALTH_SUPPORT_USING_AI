@@ -161,11 +161,7 @@ class _CallScreenState extends State<CallScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         // Remote video (if available)
-                          // WebRTC video view temporarily disabled
-                          // if (_remoteStream != null && !kIsWeb)
-                          //   Expanded(child: webrtc.RTCVideoView(...))
-        else
-          Expanded(
+        Expanded(
             child: Container(
               decoration: const BoxDecoration(
                 color: Colors.grey,

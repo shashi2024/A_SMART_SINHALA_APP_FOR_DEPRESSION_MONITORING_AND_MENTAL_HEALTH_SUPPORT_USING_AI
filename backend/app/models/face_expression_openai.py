@@ -1,10 +1,9 @@
 import json
 import os
-from typing import Any
 import base64
+from typing import Any
+from openai import OpenAI
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
 
 load_dotenv()
 
@@ -12,19 +11,19 @@ load_dotenv()
 _client = None
 
 def get_client():
-    """Get or create Gemini client"""
+    """Get or create OpenAI client"""
     global _client
     if _client is None:
-        api_key = os.getenv("GEMINI_API_KEY")
+        api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY environment variable is not set")
-        _client = genai.Client(api_key=api_key)
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+        _client = OpenAI(api_key=api_key)
     return _client
 
-def human_face_expression(image_file: Any) -> dict:
-    """Analyze an image using Google Gemini and return the predicted facial expression."""
+def human_face_expression_openai(image_file: Any) -> dict:
+    """Analyze an image using OpenAI GPT-4o and return the predicted facial expression."""
     try:
-        # Get the file content from FastAPI UploadFile or file-like object
+        # Get the file content
         if hasattr(image_file, "file"):
             file_obj = image_file.file
         elif hasattr(image_file, "read"):
@@ -39,14 +38,14 @@ def human_face_expression(image_file: Any) -> dict:
         # Seek to beginning
         if hasattr(file_obj, "seek"):
             file_obj.seek(0)
-
         file_content = file_obj.read()
-        
-        # Reset position if needed
         if hasattr(file_obj, "seek"):
             file_obj.seek(0)
 
+        # Encode to base64
+        base64_image = base64.b64encode(file_content).decode('utf-8')
         content_type = getattr(image_file, "content_type", "image/jpeg")
+
         client = get_client()
 
         prompt = (
@@ -56,32 +55,35 @@ def human_face_expression(image_file: Any) -> dict:
             "Do not include any other text or markdown formatting. Just the raw JSON object."
         )
 
-        # Using gemini-1.5-flash for stability
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=[
-                types.Part.from_bytes(data=file_content, mime_type=content_type),
-                prompt
-            ]
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{content_type};base64,{base64_image}"
+                            }
+                        }
+                    ],
+                }
+            ],
+            response_format={"type": "json_object"}
         )
 
-        raw_content = response.text.strip()
-        # Remove potential markdown code blocks if the model included them despite instructions
-        if raw_content.startswith("```"):
-            import re
-            json_match = re.search(r'\{.*\}', raw_content, re.DOTALL)
-            if json_match:
-                raw_content = json_match.group()
-
+        raw_content = response.choices[0].message.content.strip()
         parsed = json.loads(raw_content)
         expression = str(parsed.get("expression", "neutral")).lower()
 
-        # Validate that the expression is one of the allowed values
+        # Validate allowed expressions
         allowed_expressions = {"angry", "fear", "happy", "neutral", "sad", "surprise"}
         if expression not in allowed_expressions:
             expression = "neutral"
 
-        # Map expression to stress level
+        # Map to stress level
         stress_level_map = {
             "angry": "high",
             "fear": "high",

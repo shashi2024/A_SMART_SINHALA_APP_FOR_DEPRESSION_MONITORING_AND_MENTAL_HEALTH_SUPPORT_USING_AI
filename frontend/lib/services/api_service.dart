@@ -136,6 +136,20 @@ class ApiService {
     }
   }
 
+  Future<void> logout() async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/logout'),
+        headers: _headers,
+      );
+      if (response.statusCode != 200) {
+        debugPrint('Logout background update failed: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Logout background update error: $e');
+    }
+  }
+
   Future<Map<String, dynamic>> sendChatMessage(
     String message, {
     String? sessionId,
@@ -164,6 +178,20 @@ class ApiService {
       final errorBody = response.body;
       debugPrint('Chat API Error: ${response.statusCode} - $errorBody');
       throw Exception('Failed to send message: ${response.statusCode} - $errorBody');
+    }
+  }
+
+  Future<void> claimChatSession(String sessionId) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/chatbot/claim-session'),
+      headers: _headers,
+      body: jsonEncode({'session_id': sessionId}),
+    );
+
+    if (response.statusCode != 200) {
+      final errorBody = response.body;
+      debugPrint('Claim session API Error: ${response.statusCode} - $errorBody');
+      throw Exception('Failed to claim session: ${response.statusCode} - $errorBody');
     }
   }
 
@@ -448,6 +476,19 @@ class ApiService {
       }
       debugPrint('POST network error: $e');
       throw Exception('Network error: ${e.toString()}');
+    }
+  }
+
+  Future<Map<String, dynamic>> getLatestBiofeedback(String userId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/data/analyze/biofeedback/latest?user_id=$userId'),
+      headers: _headers,
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to get latest biofeedback');
     }
   }
 }

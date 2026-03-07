@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../providers/sensor_provider.dart';
 import '../providers/call_provider.dart';
 import '../services/typing_analyzer.dart';
+import '../providers/language_provider.dart';
 import 'login_screen.dart'; // For AppColors
 import 'call_screen_simple.dart';
 
@@ -22,6 +23,9 @@ class _ChatScreenState extends State<ChatScreen> {
   final TypingAnalyzer _typingAnalyzer = TypingAnalyzer();
   bool _hasStartedChat = false;
   String _lastText = "";
+  int _messageCount = 0;
+  bool _hasShownCameraPrompt = false;
+  bool _hasShownVoicePrompt = false;
 
   @override
   void initState() {
@@ -31,8 +35,8 @@ class _ChatScreenState extends State<ChatScreen> {
     // Sync authentication token to chatbot provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final chatbotProvider = Provider.of<ChatbotProvider>(context, listen: false);
       if (authProvider.token != null) {
+        final chatbotProvider = Provider.of<ChatbotProvider>(context, listen: false);
         chatbotProvider.setToken(authProvider.token);
       }
     });
@@ -77,6 +81,20 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.clear();
     _typingAnalyzer.reset();
 
+    setState(() {
+      _messageCount++;
+
+      if ((_messageCount == 5 || _messageCount == 6) && !_hasShownCameraPrompt) {
+        _hasShownCameraPrompt = true;
+        _showCameraPrompt();
+      }
+
+      if ((_messageCount == 8 || _messageCount == 9) && !_hasShownVoicePrompt) {
+        _hasShownVoicePrompt = true;
+        _showVoicePrompt();
+      }
+    });
+
     // Scroll to bottom
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -87,8 +105,64 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _showCameraPrompt() async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Quick camera check-in'),
+        content: const Text(
+          'After a few messages, Sahana can use a short front-camera snapshot together with '
+          'sensor data to better understand your stress level. This is optional and used '
+          'only for your mental health analysis.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Not now'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pushNamed('/bio-feedback');
+            },
+            child: const Text('Open camera'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showVoicePrompt() async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Short voice sample'),
+        content: const Text(
+          'Sahana can record a brief voice sample (10–15 seconds) to analyse stress and '
+          'detect fake or synthetic callers. You stay in full control and can decline.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Skip'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pushNamed('/voice');
+            },
+            child: const Text('Record sample'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final lp = context.watch<LanguageProvider>();
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -118,7 +192,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                     Expanded(
                       child: Text(
-                        'Chat with me ........',
+                        lp.translate('chat_with_me'),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -155,12 +229,12 @@ class _ChatScreenState extends State<ChatScreen> {
                         } catch (e) {
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Failed to start call: $e')),
+                              SnackBar(content: Text('${lp.translate('failed_start_call')}: $e')),
                             );
                           }
                         }
                       },
-                      tooltip: 'Start a call',
+                      tooltip: lp.translate('start_call'),
                     ),
                   ],
                 ),
@@ -172,10 +246,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   builder: (context, provider, child) {
                     if (!_hasStartedChat && provider.messages.isEmpty) {
                       // Initial greeting screen
-                      return _buildInitialGreeting();
+                      return _buildInitialGreeting(lp);
                     } else {
                       // Chat messages
-                      return _buildChatMessages(provider);
+                      return _buildChatMessages(provider, lp);
                     }
                   },
                 ),
@@ -201,8 +275,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     Expanded(
                       child: TextField(
                         controller: _messageController,
-                        decoration: const InputDecoration(
-                          hintText: 'Tell me what\'s on your mind.....',
+                        decoration: InputDecoration(
+                          hintText: lp.translate('mind_hint'),
                           hintStyle: TextStyle(color: Colors.grey),
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(
@@ -239,7 +313,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildInitialGreeting() {
+  Widget _buildInitialGreeting(LanguageProvider lp) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -288,17 +362,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                     children: [
                       TextSpan(
-                        text: 'SAHANA',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.darkGreen,
-                        ),
-                      ),
-                      const TextSpan(
-                        text: ' is here to listen to you,\n',
-                      ),
-                      const TextSpan(
-                        text: 'How are you feeling right now?',
+                        text: lp.translate('sahana_listen'),
                       ),
                     ],
                   ),
@@ -311,7 +375,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildChatMessages(ChatbotProvider provider) {
+  Widget _buildChatMessages(ChatbotProvider provider, LanguageProvider lp) {
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(16.0),
@@ -360,7 +424,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 8.0),
                     child: Text(
-                      'Risk: ${message.riskLevel}',
+                      '${lp.translate('risk')}: ${message.riskLevel}',
                       style: TextStyle(
                         fontSize: 12,
                         color: message.isUser

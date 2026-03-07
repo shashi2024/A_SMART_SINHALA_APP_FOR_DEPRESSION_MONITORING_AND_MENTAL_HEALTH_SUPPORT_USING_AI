@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chatbot_provider.dart';
+import '../providers/language_provider.dart';
 import 'login_screen.dart'; // For AppColors
 
 class SignUpScreen extends StatefulWidget {
@@ -146,7 +147,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 
                 // Welcome Message
                 Text(
-                  'Create Account',
+                  context.watch<LanguageProvider>().translate('create_account'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 32,
@@ -160,7 +161,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 
                 // Subtitle
                 Text(
-                  'Join us and start your mental health journey!',
+                  context.watch<LanguageProvider>().translate('join_us'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,
@@ -173,7 +174,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 
                 // Username Field
                 Text(
-                  'Username',
+                  context.watch<LanguageProvider>().translate('username'),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -184,7 +185,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 TextFormField(
                   controller: _usernameController,
                   decoration: InputDecoration(
-                    hintText: 'Enter your username',
+                    hintText: context.watch<LanguageProvider>().translate('enter_username'),
                     hintStyle: TextStyle(color: Colors.grey[400]),
                     filled: true,
                     fillColor: Colors.grey[100],
@@ -198,11 +199,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                   ),
                   validator: (value) {
+                    final lp = Provider.of<LanguageProvider>(context, listen: false);
                     if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a username';
+                      return lp.translate('please_enter_username');
                     }
                     if (value.trim().length < 3) {
-                      return 'Username must be at least 3 characters';
+                      return lp.translate('username_min_length');
                     }
                     return null;
                   },
@@ -212,7 +214,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 
                 // Email Field
                 Text(
-                  'Email',
+                  context.watch<LanguageProvider>().translate('email'),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -224,7 +226,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
-                    hintText: 'Enter your student email',
+                    hintText: context.watch<LanguageProvider>().translate('enter_email'),
                     hintStyle: TextStyle(color: Colors.grey[400]),
                     filled: true,
                     fillColor: Colors.grey[100],
@@ -238,11 +240,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                   ),
                   validator: (value) {
+                    final lp = Provider.of<LanguageProvider>(context, listen: false);
                     if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your email';
+                      return lp.translate('please_enter_email');
                     }
                     if (!value.contains('@')) {
-                      return 'Please enter a valid email';
+                      return lp.translate('please_enter_valid_email');
                     }
                     return null;
                   },
@@ -252,7 +255,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 
                 // Phone Field
                 Text(
-                  'Mobile Number',
+                  context.watch<LanguageProvider>().translate('phone_number'),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -264,7 +267,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
                   decoration: InputDecoration(
-                    hintText: 'Enter your mobile number',
+                    hintText: context.watch<LanguageProvider>().translate('enter_phone'),
                     hintStyle: TextStyle(color: Colors.grey[400]),
                     filled: true,
                     fillColor: Colors.grey[100],
@@ -279,7 +282,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your mobile number';
+                      return Provider.of<LanguageProvider>(context, listen: false).translate('please_enter_phone');
                     }
                     return null;
                   },
@@ -289,7 +292,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 
                 // Twitter Username Field (Optional)
                 Text(
-                  'Twitter Username (Optional)',
+                  context.watch<LanguageProvider>().translate('twitter_username'),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -300,7 +303,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 TextFormField(
                   controller: _twitterController,
                   decoration: InputDecoration(
-                    hintText: 'Enter your Twitter username (e.g., @username)',
+                    hintText: context.watch<LanguageProvider>().translate('enter_twitter'),
                     hintStyle: TextStyle(color: Colors.grey[400]),
                     filled: true,
                     fillColor: Colors.grey[100],
@@ -319,7 +322,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 
                 // Password Field
                 Text(
-                  'Password',
+                  context.watch<LanguageProvider>().translate('password'),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -331,7 +334,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   controller: _passwordController,
                   obscureText: _obscurePassword,
                   decoration: InputDecoration(
-                    hintText: 'Enter your password',
+                    hintText: context.watch<LanguageProvider>().translate('enter_password'),
                     hintStyle: TextStyle(color: Colors.grey[400]),
                     filled: true,
                     fillColor: Colors.grey[100],
@@ -358,11 +361,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                   ),
                   validator: (value) {
+                    final lp = Provider.of<LanguageProvider>(context, listen: false);
                     if (value == null || value.isEmpty) {
-                      return 'Please enter your password';
+                      return lp.translate('please_enter_password');
                     }
                     if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
+                      return lp.translate('password_min_length');
                     }
                     return null;
                   },
@@ -372,7 +376,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 
                 // Confirm Password Field
                 Text(
-                  'Confirm Password',
+                  context.watch<LanguageProvider>().translate('confirm_password'),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -384,7 +388,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   controller: _confirmPasswordController,
                   obscureText: _obscureConfirmPassword,
                   decoration: InputDecoration(
-                    hintText: 'Confirm your password',
+                    hintText: context.watch<LanguageProvider>().translate('confirm_your_password'),
                     hintStyle: TextStyle(color: Colors.grey[400]),
                     filled: true,
                     fillColor: Colors.grey[100],
@@ -411,11 +415,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                   ),
                   validator: (value) {
+                    final lp = Provider.of<LanguageProvider>(context, listen: false);
                     if (value == null || value.isEmpty) {
-                      return 'Please confirm your password';
+                      return lp.translate('please_confirm_password');
                     }
                     if (value != _passwordController.text) {
-                      return 'Passwords do not match';
+                      return lp.translate('passwords_dont_match');
                     }
                     return null;
                   },
@@ -444,8 +449,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
-                      : const Text(
-                          'Sign Up',
+                      : Text(
+                          context.watch<LanguageProvider>().translate('sign_up'),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -460,7 +465,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'Already have an account? ',
+                      '${context.watch<LanguageProvider>().translate('already_have_account')} ',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[600],
@@ -478,7 +483,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       child: Text(
-                        'Sign In',
+                        context.watch<LanguageProvider>().translate('sign_in'),
                         style: TextStyle(
                           fontSize: 14,
                           color: AppColors.darkGreen,

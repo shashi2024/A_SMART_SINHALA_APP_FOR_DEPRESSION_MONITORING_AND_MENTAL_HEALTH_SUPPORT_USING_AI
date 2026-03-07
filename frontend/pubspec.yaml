@@ -28,6 +28,8 @@ dependencies:
   speech_to_text: ^7.0.0
   flutter_tts: ^4.0.2
   geolocator: ^13.0.1
+  camera: ^0.10.5+9
+  image_picker: ^1.0.7
 
 dev_dependencies:
   flutter_test:
