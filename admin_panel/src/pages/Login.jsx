@@ -98,33 +98,10 @@ function Login() {
               justifyContent: 'center',
               mb: 2,
               position: 'relative',
+              overflow: 'hidden',
             }}
           >
-            {/* Logo icon - brain/heart design */}
-            <Box
-              sx={{
-                width: 60,
-                height: 60,
-                borderRadius: '50%',
-                bgcolor: '#9C27B0', // Purple
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-              }}
-            >
-              <Box
-                sx={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: '50%',
-                  bgcolor: colors.darkGreen,
-                  position: 'absolute',
-                  top: -5,
-                  right: -5,
-                }}
-              />
-            </Box>
+            <img src="/logo.png" alt="Sahana Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </Box>
           <Typography
             variant="h4"

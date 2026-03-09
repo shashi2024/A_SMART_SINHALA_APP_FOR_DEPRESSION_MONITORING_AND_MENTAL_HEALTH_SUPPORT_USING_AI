@@ -14,6 +14,7 @@ import pickle
 import tensorflow as tf
 from google.cloud import speech
 from google.cloud import texttospeech
+from openai import OpenAI
 
 class VoiceAnalysisService:
     """Service for analyzing voice patterns with depression detection"""
@@ -23,6 +24,7 @@ class VoiceAnalysisService:
         self.depression_model = None
         self.speech_client = None
         self.tts_client = None
+        self.openai_client = None
         
         # Language codes for Google Speech-to-Text
         self.language_codes = {
@@ -116,6 +118,11 @@ class VoiceAnalysisService:
             if creds_path and os.path.exists(creds_path):
                 self.speech_client = speech.SpeechClient()
                 self.tts_client = texttospeech.TextToSpeechClient()
+            
+            # Initialize OpenAI for Whisper fallback
+            from app.config import settings
+            if settings.VOICE_OPENAI_API_KEY:
+                self.openai_client = OpenAI(api_key=settings.VOICE_OPENAI_API_KEY)
         except Exception as e:
             print(f"Could not initialize Google Speech services: {e}")
             self.speech_client = None
@@ -222,7 +229,18 @@ class VoiceAnalysisService:
                     return " ".join([result.alternatives[0].transcript 
                                     for result in response.results])
             
-            # Fallback: return empty string if transcription not available
+            # Fallback 1: Use OpenAI Whisper if available
+            if self.openai_client:
+                print(f"[STT] Google client unavailable. Using OpenAI Whisper fallback for {language}...")
+                with open(audio_path, "rb") as audio_file:
+                    transcription = self.openai_client.audio.transcriptions.create(
+                        model="whisper-1", 
+                        file=audio_file,
+                        language=self.language_codes.get(language.lower(), "en-US").split('-')[0] # Get 'si' or 'ta'
+                    )
+                    return transcription.text
+
+            # Fallback 2: return empty string if transcription not available
             return ""
         
         except Exception as e:

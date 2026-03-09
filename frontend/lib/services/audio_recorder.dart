@@ -10,10 +10,10 @@ class AudioRecorder {
     try {
       if (await _recorder.hasPermission()) {
         final directory = await getApplicationDocumentsDirectory();
-        _currentPath = '${directory.path}/recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        _currentPath = '${directory.path}/recording_${DateTime.now().millisecondsSinceEpoch}.wav';
         await _recorder.start(
           const record_package.RecordConfig(
-            encoder: record_package.AudioEncoder.aacLc,
+            encoder: record_package.AudioEncoder.wav,
             bitRate: 128000,
             sampleRate: 44100,
           ),

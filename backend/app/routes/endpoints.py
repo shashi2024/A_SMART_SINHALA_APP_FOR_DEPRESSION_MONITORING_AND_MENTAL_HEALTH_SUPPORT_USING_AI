@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Form
 from pydantic import BaseModel
 from typing import Optional, List
+import json
 
 import cv2
 import numpy as np
@@ -322,51 +323,69 @@ async def analyze_biofeedback(
             results["sensors"]["voice"] = future_voice.result(timeout=45)
 
         # 5. Calculation of Aggregate Assessment
-        # Simple heuristic: count 'high' stress indicators
-        stress_levels = []
+        # Define base weights and extraction of scores
+        base_weights = {
+            "face": 0.35,
+            "voice": 0.35,
+            "heart_rate": 0.20,
+            "movement": 0.10
+        }
         
-        # Face stress mapping
-        if "face" in results["sensors"] and "stress_level" in results["sensors"]["face"]:
-            level = results["sensors"]["face"]["stress_level"]
-            if level == "high": stress_levels.append(3)
-            elif level == "medium": stress_levels.append(2)
-            else: stress_levels.append(1)
+        sensor_scores = {}
+        confidence_score = 0.50 # Base confidence
+        
+        # Face score mapping
+        if "face" in results["sensors"] and not results["sensors"]["face"].get("error"):
+            level = results["sensors"]["face"].get("stress_level")
+            if level == "high": sensor_scores["face"] = 3.0
+            elif level == "medium": sensor_scores["face"] = 2.0
+            else: sensor_scores["face"] = 1.0
+            confidence_score += 0.15
             
-        # Voice stress mapping
-        if "voice" in results["sensors"] and "level" in results["sensors"]["voice"]:
-            level = results["sensors"]["voice"]["level"]
-            if level == "high": stress_levels.append(3)
-            elif level == "medium": stress_levels.append(2)
-            else: stress_levels.append(1)
+        # Voice score mapping
+        if "voice" in results["sensors"] and not results["sensors"]["voice"].get("error"):
+            level = results["sensors"]["voice"].get("level")
+            if level == "high": sensor_scores["voice"] = 3.0
+            elif level == "medium": sensor_scores["voice"] = 2.0
+            else: sensor_scores["voice"] = 1.0
+            confidence_score += 0.15
             
-        # Heart rate Mapping
-        if "heart_rate" in results["sensors"] and "stress_level" in results["sensors"]["heart_rate"]:
-            level = results["sensors"]["heart_rate"]["stress_level"]
-            if "High" in level: stress_levels.append(3)
-            elif "Normal" not in level and "Relaxed" not in level: stress_levels.append(2)
-            else: stress_levels.append(1)
+        # Heart rate score mapping
+        if "heart_rate" in results["sensors"] and not results["sensors"]["heart_rate"].get("error"):
+            level = results["sensors"]["heart_rate"].get("stress_level")
+            if level == "High Stress": sensor_scores["heart_rate"] = 3.0
+            elif level == "Elevated Stress": sensor_scores["heart_rate"] = 2.0
+            else: sensor_scores["heart_rate"] = 1.0
+            confidence_score += 0.10
 
-        # Movement mapping
-        if "movement" in results["sensors"] and "activity" in results["sensors"]["movement"]:
-            activity = results["sensors"]["movement"]["activity"]
-            if activity == "Running": stress_levels.append(2) # Physiological arousal
-            
-        # Calculate final risk
-        avg_stress = 0.0
-        if not stress_levels:
+        # Movement score mapping
+        if "movement" in results["sensors"] and not results["sensors"]["movement"].get("error"):
+            activity = results["sensors"]["movement"].get("activity")
+            if activity == "Running": sensor_scores["movement"] = 2.5
+            elif activity == "Walking": sensor_scores["movement"] = 1.5
+            else: sensor_scores["movement"] = 1.0
+            confidence_score += 0.05
+
+        # Calculate weighted final risk
+        if not sensor_scores:
             final_risk = "unknown"
+            avg_weighted_score = 0.0
         else:
-            avg_stress = sum(stress_levels) / len(stress_levels)
-            if avg_stress > 2.5: final_risk = "severe"
-            elif avg_stress > 2.0: final_risk = "high"
-            elif avg_stress > 1.5: final_risk = "moderate"
+            # Re-normalize weights based on available sensors
+            total_available_weight = sum(base_weights[s] for s in sensor_scores)
+            avg_weighted_score = sum(sensor_scores[s] * (base_weights[s] / total_available_weight) for s in sensor_scores)
+            
+            # Application of updated thresholds
+            if avg_weighted_score > 2.6: final_risk = "severe"
+            elif avg_weighted_score > 2.1: final_risk = "high"
+            elif avg_weighted_score > 1.4: final_risk = "moderate"
             else: final_risk = "low"
 
         results["final_assessment"] = {
             "risk_level": final_risk,
-            "avg_stress_score": round(avg_stress, 2),
-            "confidence": 0.88, # Baseline diagnostic confidence
-            "summary": f"Calculated based on {len(stress_levels)} contributing sensor factors."
+            "avg_stress_score": round(avg_weighted_score, 2),
+            "confidence": round(confidence_score, 2),
+            "summary": f"Calculated based on {len(sensor_scores)} contributing sensor factors."
         }
 
         # Save to Firestore

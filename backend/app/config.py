@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    VOICE_OPENAI_API_KEY: str = os.getenv("VOICE_OPENAI_API_KEY", "")
 
     X_BEARER_TOKEN: str = os.getenv("X_BEARER_TOKEN", "")
 

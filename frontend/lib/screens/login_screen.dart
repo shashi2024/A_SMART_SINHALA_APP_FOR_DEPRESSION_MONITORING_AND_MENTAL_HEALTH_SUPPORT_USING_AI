@@ -379,10 +379,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
-            // Heart shape with medical cross
-            CustomPaint(
-              size: const Size(100, 100),
-              painter: LogoPainter(),
+            // Heart shape with medical cross and SAHANA text
+            Image.asset(
+              'assets/images/logo.png',
+              width: 100,
+              height: 100,
+              fit: BoxFit.contain,
             ),
           ],
         ),
@@ -391,114 +393,3 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// Custom painter for logo (heart, cross, stars)
-class LogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final width = size.width;
-    final height = size.height;
-    final centerX = width / 2;
-    final centerY = height / 2;
-
-    // Draw heart shape (pink/purple)
-    final heartPaint = Paint()
-      ..color = const Color(0xFFE91E63) // Pink color
-      ..style = PaintingStyle.fill;
-
-    final heartPath = Path();
-    heartPath.moveTo(centerX, centerY + height * 0.15);
-    heartPath.cubicTo(
-      centerX, centerY,
-      centerX - width * 0.15, centerY - height * 0.1,
-      centerX - width * 0.15, centerY + height * 0.05,
-    );
-    heartPath.cubicTo(
-      centerX - width * 0.15, centerY + height * 0.15,
-      centerX - width * 0.05, centerY + height * 0.2,
-      centerX, centerY + height * 0.25,
-    );
-    heartPath.cubicTo(
-      centerX + width * 0.05, centerY + height * 0.2,
-      centerX + width * 0.15, centerY + height * 0.15,
-      centerX + width * 0.15, centerY + height * 0.05,
-    );
-    heartPath.cubicTo(
-      centerX + width * 0.15, centerY - height * 0.1,
-      centerX, centerY,
-      centerX, centerY + height * 0.15,
-    );
-    canvas.drawPath(heartPath, heartPaint);
-
-    // Draw medical cross (blue)
-    final crossPaint = Paint()
-      ..color = AppColors.darkGreen
-      ..style = PaintingStyle.fill
-      ..strokeWidth = 4;
-
-    final crossSize = width * 0.25;
-    final crossThickness = width * 0.08;
-    
-    // Vertical line
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(centerX, centerY),
-          width: crossThickness,
-          height: crossSize,
-        ),
-        const Radius.circular(2),
-      ),
-      crossPaint,
-    );
-    
-    // Horizontal line
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(centerX, centerY),
-          width: crossSize,
-          height: crossThickness,
-        ),
-        const Radius.circular(2),
-      ),
-      crossPaint,
-    );
-
-    // Draw small stars (white/cream)
-    final starPaint = Paint()
-      ..color = AppColors.creamYellow
-      ..style = PaintingStyle.fill;
-
-    const starSize = 4.0;
-    _drawStar(canvas, Offset(centerX - width * 0.2, centerY - height * 0.15), starSize, starPaint);
-    _drawStar(canvas, Offset(centerX + width * 0.2, centerY - height * 0.1), starSize * 0.8, starPaint);
-    _drawStar(canvas, Offset(centerX - width * 0.15, centerY + height * 0.25), starSize * 0.8, starPaint);
-  }
-
-  void _drawStar(Canvas canvas, Offset center, double size, Paint paint) {
-    final path = Path();
-    final outerRadius = size;
-    final innerRadius = size * 0.4;
-    
-    for (int i = 0; i < 5; i++) {
-      final angle = (i * 4 * math.pi / 5) - math.pi / 2;
-      final x = center.dx + outerRadius * math.cos(angle);
-      final y = center.dy + outerRadius * math.sin(angle);
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-      
-      final innerAngle = angle + (2 * math.pi / 5);
-      final innerX = center.dx + innerRadius * math.cos(innerAngle);
-      final innerY = center.dy + innerRadius * math.sin(innerAngle);
-      path.lineTo(innerX, innerY);
-    }
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
