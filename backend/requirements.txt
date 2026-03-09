@@ -33,3 +33,4 @@ openai==1.79.0
 python-dotenv
 
 torchvision==0.16.2
+gtts

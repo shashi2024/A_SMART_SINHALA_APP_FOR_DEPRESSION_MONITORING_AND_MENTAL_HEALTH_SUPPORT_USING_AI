@@ -491,12 +491,34 @@ class FirestoreService:
 
     def update_user_fake_status(self, user_id: str, fake_assessment: Dict):
         """Persist fake detection result on the user profile to avoid frequent recalculation"""
+        # Get existing fake status to maintain both scores
+        user = self.get_user_by_id(user_id)
+        current_fake = user.get('fake_status', {}) if user else {}
+        
+        batch_type = fake_assessment.get('batch_type', 'typing')
+        new_score = fake_assessment.get('fake_score', 0.0)
+        
+        # Update specific score
+        typing_score = current_fake.get('typing_score', 0.0)
+        voice_score = current_fake.get('voice_score', 0.0)
+        
+        if batch_type == 'typing':
+            typing_score = new_score
+        else:
+            voice_score = new_score
+            
+        # Calculate mean if both exist, otherwise use the available one
+        # If one score is 0 and the other isn't, they are averaged
+        avg_score = (typing_score + voice_score) / 2.0
+        
         updates = {
             'fake_status': {
-                'is_fake': fake_assessment.get('is_fake', False),
-                'fake_score': fake_assessment.get('fake_score', 0.0),
+                'is_fake': avg_score >= 0.5,
+                'fake_score': avg_score,
+                'typing_score': typing_score,
+                'voice_score': voice_score,
                 'last_analyzed': firestore.SERVER_TIMESTAMP,
-                'batch_type': fake_assessment.get('batch_type', 'typing')
+                'batch_type': batch_type  # Last updated batch type
             }
         }
         self.update_user(user_id, updates)

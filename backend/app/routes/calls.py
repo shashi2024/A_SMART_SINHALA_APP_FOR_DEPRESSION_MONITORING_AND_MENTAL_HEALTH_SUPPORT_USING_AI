@@ -251,7 +251,7 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
                         audio_data = base64.b64decode(audio_base64)
                         
                         # Process voice message (STT -> Chatbot -> TTS)
-                        response = voice_call_service.process_voice_message(
+                        response = await voice_call_service.process_voice_message(
                             audio_data=audio_data,
                             user_id=user_id,
                             session_id=call_id,

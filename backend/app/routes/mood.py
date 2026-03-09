@@ -33,13 +33,16 @@ async def create_mood_checkin(
     """Create a new mood check-in and update risk level"""
     user_id = str(current_user.get('id'))
     
-    # Validate mood value
+    # Validate mood value by normalizing it to Title Case
     valid_moods = ['Excited', 'Happy', 'Calm', 'Neutral', 'Anxious', 'Sad']
-    if mood_data.mood not in valid_moods:
+    if not mood_data.mood or mood_data.mood.title() not in valid_moods:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid mood. Must be one of: {', '.join(valid_moods)}"
         )
+    
+    # Normalize to store capitalized version
+    mood_data.mood = mood_data.mood.title()
     
     # Try to find the most recent session (within last 2 hours) to link mood
     # This links mood to the session the user is likely currently in

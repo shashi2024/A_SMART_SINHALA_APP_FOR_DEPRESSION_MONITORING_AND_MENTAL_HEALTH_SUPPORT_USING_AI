@@ -37,6 +37,13 @@ import {
   Assessment,
   Security,
   Close,
+  Keyboard,
+  Mic,
+  GppGood,
+  GppMaybe,
+  GppBad,
+  History,
+  Psychology,
 } from '@mui/icons-material';
 
 // Color palette
@@ -521,66 +528,173 @@ function PatientsRiskLevel() {
       <Dialog
         open={fakeModalOpen}
         onClose={() => setFakeModalOpen(false)}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
         PaperProps={{
-          sx: { borderRadius: 3, padding: 1 }
+          sx: { borderRadius: 3, padding: 0, overflow: 'hidden' }
         }}
       >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Security sx={{ color: colors.red }} />
-            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-              Fake User Detection Details
-            </Typography>
+        <DialogTitle sx={{
+          background: 'linear-gradient(135deg, #185846 0%, #2e7d32 100%)',
+          color: 'white',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          py: 2.5
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Security sx={{ fontSize: 28 }} />
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
+                Fake User Detection
+              </Typography>
+              <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 500 }}>
+                Biometric pattern analysis for {selectedUser?.username}
+              </Typography>
+            </Box>
           </Box>
-          <IconButton onClick={() => setFakeModalOpen(false)} size="small">
+          <IconButton onClick={() => setFakeModalOpen(false)} size="small" sx={{ color: 'white' }}>
             <Close />
           </IconButton>
         </DialogTitle>
-        <DialogContent dividers>
+        <DialogContent sx={{ p: 3, bgcolor: '#f4f6f8' }}>
           {modalLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-              <CircularProgress size={30} />
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+              <CircularProgress size={40} thickness={4} sx={{ color: colors.darkGreen }} />
             </Box>
           ) : diagData ? (
-            <List sx={{ pt: 0 }}>
-              <ListItem sx={{ px: 0, flexDirection: 'column', alignItems: 'flex-start' }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>Typing Patterns</Typography>
-                <Box sx={{ width: '100%', bgcolor: diagData.fake_indicators.typing?.overall_assessment?.is_fake ? '#fff1f0' : '#f6ffed', p: 2, borderRadius: 2, border: '1px solid', borderColor: diagData.fake_indicators.typing?.overall_assessment?.is_fake ? '#ffa39e' : '#b7eb8f' }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Likelihood of Fake:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{((diagData.fake_indicators?.typing?.overall_assessment?.avg_fake_score || 0) * 100).toFixed(1)}%</Typography>
-                  </Box>
-                  <Divider sx={{ my: 1 }} />
-                  <Typography variant="caption" sx={{ color: '#666' }}>
-                    Analyzed across {diagData.fake_indicators?.typing?.total_samples || 0} samples.
-                    Main indicator: {diagData.fake_indicators?.typing?.overall_assessment?.is_fake ? "Highly repetitive and machine-like timing detected." : "Natural variation in keystroke timing observed."}
-                  </Typography>
+            <Box sx={{ py: 1 }}>
+              {/* Typing Analysis Card */}
+              <Card sx={{ mb: 3, borderRadius: 3, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                <Box sx={{ p: 2, background: 'linear-gradient(135deg, #185846 0%, #4caf50 100%)', color: 'white', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Keyboard />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Typing Pattern Analysis</Typography>
                 </Box>
-              </ListItem>
+                <CardContent sx={{ p: 3 }}>
+                  <Grid container spacing={3} alignItems="center">
+                    <Grid item xs={12} sm={4}>
+                      <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#f8f9fa', borderRadius: 4, border: '1px border', borderColor: '#eee' }}>
+                        <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.5, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 }}>
+                          FAKE SCORE
+                        </Typography>
+                        <Typography variant="h4" sx={{
+                          fontWeight: 900,
+                          color: (diagData.fake_indicators?.typing?.overall_assessment?.avg_fake_score || 0) >= 0.6 ? colors.red : colors.darkGreen
+                        }}>
+                          {((diagData.fake_indicators?.typing?.overall_assessment?.avg_fake_score || 0) * 100).toFixed(1)}%
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={12} sm={8}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        {(diagData.fake_indicators?.typing?.overall_assessment?.avg_fake_score || 0) >= 0.6 ?
+                          <GppBad sx={{ color: colors.red }} /> :
+                          <GppGood sx={{ color: colors.darkGreen }} />
+                        }
+                        <Typography variant="subtitle1" sx={{
+                          fontWeight: 800,
+                          color: (diagData.fake_indicators?.typing?.overall_assessment?.avg_fake_score || 0) >= 0.6 ? colors.red : colors.darkGreen
+                        }}>
+                          {(diagData.fake_indicators?.typing?.overall_assessment?.avg_fake_score || 0) >= 0.6 ? 'High Risk Cluster' : 'Authentic Patterns'}
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" color="textSecondary" sx={{ lineHeight: 1.6 }}>
+                        {diagData.fake_indicators?.typing?.overall_assessment?.is_fake
+                          ? "Machine-like consistency detected in keystroke durations and intervals. Patterns suggest automated input or highly trained non-human behavior."
+                          : "Natural variance in keystroke timing observed. Timing distributions match typical human neuromotor characteristics."
+                        }
+                      </Typography>
+                      <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <History sx={{ fontSize: 16, color: '#666' }} />
+                        <Typography variant="caption" sx={{ color: '#666', fontWeight: 600 }}>
+                          Analyzed across <strong>{diagData.fake_indicators?.typing?.total_samples || 0}</strong> unique typing sessions.
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
 
-              <ListItem sx={{ px: 0, mt: 2, flexDirection: 'column', alignItems: 'flex-start' }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>Voice/Speech Patterns</Typography>
-                <Box sx={{ width: '100%', bgcolor: diagData.fake_indicators.voice?.overall_assessment?.is_fake ? '#fff1f0' : '#f6ffed', p: 2, borderRadius: 2, border: '1px solid', borderColor: diagData.fake_indicators.voice?.overall_assessment?.is_fake ? '#ffa39e' : '#b7eb8f' }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Likelihood of Fake:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{((diagData.fake_indicators?.voice?.overall_assessment?.avg_fake_score || 0) * 100).toFixed(1)}%</Typography>
-                  </Box>
-                  <Divider sx={{ my: 1 }} />
-                  <Typography variant="caption" sx={{ color: '#666' }}>
-                    Detected via {diagData.fake_indicators?.voice?.total_samples || 0} voice recordings.
-                    Status: {diagData.fake_indicators?.voice?.overall_assessment?.is_fake ? "Synthetic or recorded voice signatures detected." : "Organic voice characteristics confirmed."}
-                  </Typography>
+              {/* Voice Analysis Card */}
+              <Card sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                <Box sx={{ p: 2, background: 'linear-gradient(135deg, #2196F3 0%, #00BCD4 100%)', color: 'white', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Mic />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Voice & Speech Analysis</Typography>
                 </Box>
-              </ListItem>
-            </List>
+                <CardContent sx={{ p: 3 }}>
+                  <Grid container spacing={3} alignItems="center">
+                    <Grid item xs={12} sm={4}>
+                      <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#f8f9fa', borderRadius: 4, border: '1px border', borderColor: '#eee' }}>
+                        <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.5, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 }}>
+                          FAKE SCORE
+                        </Typography>
+                        <Typography variant="h4" sx={{
+                          fontWeight: 900,
+                          color: (diagData.fake_indicators?.voice?.overall_assessment?.avg_fake_score || 0) >= 0.5 ? colors.red : colors.blue
+                        }}>
+                          {((diagData.fake_indicators?.voice?.overall_assessment?.avg_fake_score || 0) * 100).toFixed(1)}%
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={12} sm={8}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        {(diagData.fake_indicators?.voice?.overall_assessment?.avg_fake_score || 0) >= 0.5 ?
+                          <GppBad sx={{ color: colors.red }} /> :
+                          <GppGood sx={{ color: colors.blue }} />
+                        }
+                        <Typography variant="subtitle1" sx={{
+                          fontWeight: 800,
+                          color: (diagData.fake_indicators?.voice?.overall_assessment?.avg_fake_score || 0) >= 0.5 ? colors.red : colors.blue
+                        }}>
+                          {(diagData.fake_indicators?.voice?.overall_assessment?.avg_fake_score || 0) >= 0.5 ? 'Suspicious Audio' : 'Natural Speech'}
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" color="textSecondary" sx={{ lineHeight: 1.6 }}>
+                        {diagData.fake_indicators?.voice?.overall_assessment?.is_fake
+                          ? "Synthetic vocal characteristics or record-playback signatures detected in the audio stream."
+                          : "Vocal frequency stability and harmonic patterns indicate organic, live human speech."
+                        }
+                      </Typography>
+                      <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <History sx={{ fontSize: 16, color: '#666' }} />
+                        <Typography variant="caption" sx={{ color: '#666', fontWeight: 600 }}>
+                          Detected via <strong>{diagData.fake_indicators?.voice?.total_samples || 0}</strong> biometric voice records.
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+
+              <Box sx={{ mt: 3, p: 2, bgcolor: '#fff9c4', borderRadius: 2, display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+                <Psychology sx={{ color: '#fbc02d', mt: 0.5 }} />
+                <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 500 }}>
+                  <strong>Note:</strong> Fake user detection uses deep learning models to compare biometric signatures against established human baselines. Sudden drops in score might occur if a user's environment or health status changes significantly.
+                </Typography>
+              </Box>
+            </Box>
           ) : (
-            <Typography>Failed to load data.</Typography>
+            <Box sx={{ py: 6, textAlign: 'center' }}>
+              <Typography color="textSecondary">Failed to load biometric indicators.</Typography>
+            </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setFakeModalOpen(false)} sx={{ color: colors.darkGreen }}>Done</Button>
+        <DialogActions sx={{ p: 2.5, bgcolor: '#f4f6f8' }}>
+          <Button
+            onClick={() => setFakeModalOpen(false)}
+            variant="contained"
+            sx={{
+              borderRadius: 2.5,
+              px: 4,
+              py: 1,
+              fontWeight: 700,
+              textTransform: 'none',
+              bgcolor: colors.darkGreen,
+              '&:hover': { bgcolor: '#1b5e20' }
+            }}
+          >
+            Done
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

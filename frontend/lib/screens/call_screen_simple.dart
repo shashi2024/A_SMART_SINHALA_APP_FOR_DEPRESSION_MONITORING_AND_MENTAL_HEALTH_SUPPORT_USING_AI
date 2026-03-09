@@ -6,6 +6,8 @@ import 'package:flutter_tts/flutter_tts.dart';
 import '../providers/call_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../services/audio_recorder.dart';
+import '../providers/sensor_provider.dart';
 
 /// Voice call screen with AI chatbot integration
 /// Uses Speech-to-Text for user input and Text-to-Speech for bot responses
@@ -32,6 +34,12 @@ class _CallScreenSimpleState extends State<CallScreenSimple> {
   bool _isBotSpeaking = false;
   String _currentText = '';
   String _botResponse = '';
+  
+  // Voice analysis tracking
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  int _voiceAnalysisCount = 0;
+  final int _maxVoiceAnalysis = 2;
+  bool _isRecordingAudio = false;
   
   // Language settings
   String _selectedLanguage = 'en'; // 'en', 'si', 'ta'
@@ -90,6 +98,20 @@ class _CallScreenSimpleState extends State<CallScreenSimple> {
       onStatus: (status) {
         debugPrint('Speech status: $status');
         if (status == 'done' || status == 'notListening') {
+          // If we are recording audio, stop it and send
+          if (_isRecordingAudio) {
+            _audioRecorder.stopRecording().then((audioPath) {
+              _isRecordingAudio = false;
+              if (_voiceAnalysisCount < _maxVoiceAnalysis) {
+                _sendAudioForAnalysis(audioPath);
+                _voiceAnalysisCount++;
+              }
+            }).catchError((e) {
+              debugPrint('Error stopping audio recorder: $e');
+              _isRecordingAudio = false;
+            });
+          }
+          
           setState(() => _isListening = false);
           // Process the recognized text
           if (_currentText.isNotEmpty && !_isBotSpeaking) {
@@ -99,6 +121,11 @@ class _CallScreenSimpleState extends State<CallScreenSimple> {
       },
       onError: (error) {
         debugPrint('Speech error: $error');
+        // Stop recording on error too
+        if (_isRecordingAudio) {
+          _audioRecorder.stopRecording().catchError((e) => null);
+          _isRecordingAudio = false;
+        }
         setState(() => _isListening = false);
       },
     );
@@ -190,7 +217,7 @@ class _CallScreenSimpleState extends State<CallScreenSimple> {
     setState(() => _isBotSpeaking = false);
   }
 
-  void _startListening() {
+  void _startListening() async {
     if (!_speechAvailable || _isListening || _isMuted || _isBotSpeaking) return;
     
     setState(() {
@@ -198,6 +225,17 @@ class _CallScreenSimpleState extends State<CallScreenSimple> {
       _currentText = '';
     });
     
+    
+    // Also start recording raw audio for biometric analysis
+    if (_voiceAnalysisCount < _maxVoiceAnalysis) {
+      try {
+        await _audioRecorder.startRecording();
+        _isRecordingAudio = true;
+      } catch (e) {
+        debugPrint('Audio recording error: $e');
+      }
+    }
+
     _speech.listen(
       onResult: (result) {
         setState(() {
@@ -211,10 +249,51 @@ class _CallScreenSimpleState extends State<CallScreenSimple> {
     );
   }
 
-  void _stopListening() {
+  void _stopListening() async {
     if (!_isListening) return;
     _speech.stop();
+    
+    if (_isRecordingAudio) {
+      try {
+        final audioPath = await _audioRecorder.stopRecording();
+        _isRecordingAudio = false;
+        
+        if (_voiceAnalysisCount < _maxVoiceAnalysis) {
+          _sendAudioForAnalysis(audioPath);
+          _voiceAnalysisCount++;
+        }
+      } catch (e) {
+        debugPrint('Error stopping audio recorder: $e');
+      }
+    }
+
     setState(() => _isListening = false);
+  }
+
+  Future<void> _sendAudioForAnalysis(String audioPath) async {
+    try {
+      final sensorProvider = Provider.of<SensorProvider>(context, listen: false);
+      final sensorData = await sensorProvider.getCurrentSensorData();
+      
+      final language = _selectedLanguage == 'si' ? 'sinhala' : 
+                       _selectedLanguage == 'ta' ? 'tamil' : 'english';
+      
+      debugPrint('Sending voice sample #$_voiceAnalysisCount for analysis...');
+      
+      // We don't await this as we don't want to block the conversation
+      _apiService.analyzeVoice(
+        audioPath, 
+        sensorData, 
+        language: language
+      ).then((result) {
+        debugPrint('Voice analysis completed: ${result['is_fake'] ? 'FAKE' : 'Authentic'} (Conf: ${result['fake_confidence']})');
+      }).catchError((e) {
+        debugPrint('Voice analysis API error: $e');
+      });
+      
+    } catch (e) {
+      debugPrint('Error preparing audio for analysis: $e');
+    }
   }
 
   Future<void> _sendToChatbot(String userMessage) async {
@@ -313,6 +392,7 @@ class _CallScreenSimpleState extends State<CallScreenSimple> {
   void dispose() {
     _speech.stop();
     _flutterTts.stop();
+    _audioRecorder.dispose();
     super.dispose();
   }
 

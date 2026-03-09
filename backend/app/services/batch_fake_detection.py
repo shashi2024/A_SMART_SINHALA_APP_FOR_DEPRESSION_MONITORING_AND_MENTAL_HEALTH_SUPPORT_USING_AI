@@ -161,7 +161,17 @@ class BatchFakeDetectionService:
             aggregated_features = self._aggregate_voice_features(batch_analyses)
             
             # Calculate overall fake score
+            # Prioritize the most recent model score if it's very high/low
+            latest_model_score = model_scores[-1] if model_scores else 0.0
+            
             fake_score = self._detect_fake_voice_patterns(aggregated_features, model_scores)
+            
+            # If the latest call was firmly detected as fake, reflect that more strongly
+            if latest_model_score >= 0.8:
+                fake_score = max(fake_score, 0.85)
+            elif latest_model_score <= 0.2 and len(model_scores) > 1:
+                # If latest is clean, but batch is dirty, we still keep it a bit high but slightly reduced
+                fake_score = fake_score * 0.8
             
             # Determine if fake
             is_fake = fake_score >= 0.5
@@ -327,11 +337,11 @@ class BatchFakeDetectionService:
                 all_analyses = self.firestore_service.get_user_voice_analyses(user_id)
                 batches = self.voice_batches
             
-            total_count = len(all_analyses)
+            total_samples = len(all_analyses)
             batch_results = []
             
             for batch in batches:
-                if total_count >= batch["end"]:
+                if total_samples >= batch["end"]:
                     # PASS PRE-FETCHED DATA
                     if batch_type == "typing":
                         result = await self.analyze_typing_batch(user_id, batch, pre_fetched_analyses=all_analyses)
@@ -343,28 +353,36 @@ class BatchFakeDetectionService:
                         "batch_name": batch["name"],
                         "batch_range": f"{batch['start']}-{batch['end']}",
                         "status": "pending",
-                        "current_count": total_count,
+                        "current_count": total_samples,
                         "required_count": batch["end"]
                     })
             
-            # Overall assessment
+            # Overall assessment - combine batches AND individual latest results
             completed_batches = [r for r in batch_results if r.get("is_fake") is not None]
+            
+            # Calculate average from all available individual analyses for true real-time score
+            individual_scores = [a.get('fake_confidence', 0) or a.get('fake_score', 0) for a in all_analyses]
+            avg_realtime_score = float(np.mean(individual_scores)) if individual_scores else 0.0
+            
             if completed_batches:
                 fake_scores = [r.get("fake_score", 0) for r in completed_batches]
-                avg_fake_score = float(np.mean(fake_scores))
+                # Weight batches heavily but include realtime signal
+                avg_fake_score = (float(np.mean(fake_scores)) * 0.7) + (avg_realtime_score * 0.3)
                 is_fake_overall = bool(avg_fake_score >= 0.5)
             else:
-                avg_fake_score = 0.0
-                is_fake_overall = False
+                # If no batches completed, use the average of individual assessments
+                avg_fake_score = avg_realtime_score
+                is_fake_overall = bool(avg_fake_score >= 0.5)
             
             return {
                 "user_id": user_id,
                 "batch_type": batch_type,
-                "total_count": total_count,
+                "total_samples": total_samples,
                 "batches": batch_results,
                 "overall_assessment": {
                     "is_fake": is_fake_overall,
                     "avg_fake_score": float(avg_fake_score),
+                    "realtime_score": float(avg_realtime_score),
                     "batches_analyzed": len(completed_batches)
                 }
             }
