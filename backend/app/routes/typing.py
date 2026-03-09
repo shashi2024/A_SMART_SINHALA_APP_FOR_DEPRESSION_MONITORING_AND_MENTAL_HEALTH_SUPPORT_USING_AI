@@ -93,6 +93,19 @@ async def analyze_typing(
         'risk_level': analysis_result.get("risk_level", "low")
     })
     
+    # Update user profile with real-time fake status for dashboard
+    individual_fake_score = fake_result.get("confidence", 0)
+    current_fake_status = current_user.get('fake_status', {})
+    
+    # Only update if the individual score is higher than what's cached, 
+    # or if we're in a batch boundary (which is handled below)
+    if individual_fake_score > current_fake_status.get('fake_score', 0):
+        firestore_service.update_user_fake_status(user_id, {
+            "is_fake": fake_result.get("is_fake", False),
+            "fake_score": individual_fake_score,
+            "batch_type": "typing_realtime"
+        })
+
     # Check if we should analyze a batch (1-5, 15-20, 30-35)
     all_typing_analyses = firestore_service.get_user_typing_analyses(user_id)
     current_count = len(all_typing_analyses)
@@ -103,11 +116,11 @@ async def analyze_typing(
         # Analyze this batch
         batch_result = await batch_fake_service.analyze_typing_batch(user_id, batch_info)
         
-        # Persist result to user profile for dashboard speed
+        # Persist result to user profile for dashboard speed (overrides realtime if batch is more authoritative)
         firestore_service.update_user_fake_status(user_id, {
             "is_fake": batch_result.get("is_fake", False),
             "fake_score": batch_result.get("fake_score", 0.0),
-            "batch_type": "typing"
+            "batch_type": "typing_batch"
         })
         
         # Create alert if batch indicates fake user

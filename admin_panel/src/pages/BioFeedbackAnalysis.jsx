@@ -142,7 +142,8 @@ function BioFeedbackRow({ user }) {
                     risk: bioFeedback?.final_assessment?.risk_level || profile.statistics?.risk_level || null,
                     score: profile.statistics?.average_depression_score || '0.00',
                     last_activity: bioFeedback?.timestamp || profile.statistics?.last_activity || null,
-                    summary: bioFeedback?.final_assessment?.summary
+                    summary: bioFeedback?.final_assessment?.summary,
+                    confidence: bioFeedback?.final_assessment?.diagnostic_confidence || 88
                 }
             };
 
@@ -328,11 +329,11 @@ function BioFeedbackRow({ user }) {
                                         <Box sx={{ mt: 3 }}>
                                             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                                                 <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Diagnostic Confidence</Typography>
-                                                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>88%</Typography>
+                                                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{Math.round(data.finalOutput.confidence)}%</Typography>
                                             </Box>
                                             <LinearProgress
                                                 variant="determinate"
-                                                value={88}
+                                                value={data.finalOutput.confidence}
                                                 sx={{
                                                     height: 10,
                                                     borderRadius: 5,

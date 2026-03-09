@@ -13,6 +13,46 @@ from scipy.signal import find_peaks
 import torch
 from app.services.algorithm import FakeCallAlgorithm
 
+class FakeCallDetectorNN(torch.nn.Module):
+    def __init__(self):
+        super(FakeCallDetectorNN, self).__init__()
+        self.cnn_layers = torch.nn.Sequential(
+            torch.nn.Conv2d(1, 64, kernel_size=3, padding=1),
+            torch.nn.BatchNorm2d(64),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(2),
+            torch.nn.Dropout2d(0.3),
+            torch.nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            torch.nn.BatchNorm2d(128),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(2),
+            torch.nn.Dropout2d(0.3),
+            torch.nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            torch.nn.BatchNorm2d(256),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(2),
+            torch.nn.Dropout2d(0.3)
+        )
+        self.lstm = torch.nn.LSTM(input_size=256, hidden_size=256, num_layers=2, batch_first=True, bidirectional=True)
+        self.fc_layers = torch.nn.Sequential(
+            torch.nn.Linear(512, 512),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(0.3),
+            torch.nn.Linear(512, 256),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(0.3)
+        )
+        self.classifier = torch.nn.Linear(256, 1)
+
+    def forward(self, x):
+        x = self.cnn_layers(x)
+        x = x.squeeze(2).transpose(1, 2)
+        x, _ = self.lstm(x)
+        x = x[:, -1, :]  # Take last time step
+        x = self.fc_layers(x)
+        x = self.classifier(x)
+        return torch.sigmoid(x)
+
 class CallBotDetectionService:
     """Service for detecting fake call bots and synthetic voices"""
     
@@ -40,10 +80,10 @@ class CallBotDetectionService:
         try:
             # Try multiple possible paths
             possible_paths = [
-                os.path.join("models", "fake_call_detector", "fakecall_model.pth"),  # From backend directory
-                os.path.join("..", "models", "fake_call_detector", "fakecall_model.pth"),  # From app/services
-                os.path.join("backend", "models", "fake_call_detector", "fakecall_model.pth"),  # From project root
-                os.path.join(".", "backend", "models", "fake_call_detector", "fakecall_model.pth"),  # Alternative
+                os.path.join("models", "fake_call_detector", "fake_call_detector.pth"),  # From backend directory
+                os.path.join("..", "models", "fake_call_detector", "fake_call_detector.pth"),  # From app/services
+                os.path.join("backend", "models", "fake_call_detector", "fake_call_detector.pth"),  # From project root
+                os.path.join(".", "backend", "models", "fake_call_detector", "fake_call_detector.pth"),  # Alternative
             ]
             
             model_path = None
@@ -55,9 +95,12 @@ class CallBotDetectionService:
             if model_path and os.path.exists(model_path):
                 try:
                     # Load PyTorch model
-                    self.custom_model = torch.load(model_path, map_location='cpu')
-                    if hasattr(self.custom_model, 'eval'):
-                        self.custom_model.eval()  # Set to evaluation mode
+                    state_dict = torch.load(model_path, map_location='cpu')
+                    if 'model_state_dict' in state_dict:
+                        state_dict = state_dict['model_state_dict']
+                    self.custom_model = FakeCallDetectorNN()
+                    self.custom_model.load_state_dict(state_dict)
+                    self.custom_model.eval()  # Set to evaluation mode
                     self.model_loaded = True
                     print(f"[INFO] Loaded custom fake call detector model from {model_path}")
                 except Exception as e:
@@ -76,75 +119,17 @@ class CallBotDetectionService:
     def _prepare_features_for_model(self, features: Dict[str, Any]) -> torch.Tensor:
         """
         Prepare audio features in the format expected by the PyTorch model
-        Modify this based on your model's expected input format
+        The CNN-LSTM model expects a 2D MFCC matrix [1, 1, 13, T]
         """
-        # Extract feature vectors - adjust based on your model's input requirements
-        feature_vector = []
-        
-        # Pitch features
-        pitch_seq = features.get('pitch_sequence', np.array([0]))
-        if len(pitch_seq) > 0:
-            feature_vector.extend([
-                float(np.mean(pitch_seq)),
-                float(np.std(pitch_seq)),
-                float(np.min(pitch_seq)),
-                float(np.max(pitch_seq))
-            ])
-        else:
-            feature_vector.extend([0.0, 0.0, 0.0, 0.0])
-        
-        # Energy features
-        energy_seq = features.get('energy_sequence', np.array([0]))
-        if len(energy_seq) > 0:
-            feature_vector.extend([
-                float(np.mean(energy_seq)),
-                float(np.std(energy_seq))
-            ])
-        else:
-            feature_vector.extend([0.0, 0.0])
-        
-        # MFCC features (flatten and take statistics)
+        # MFCC features from librosa extraction
         mfcc = features.get('mfcc_features', np.array([[0]]))
-        if mfcc.size > 0:
-            mfcc_flat = mfcc.flatten()
-            feature_vector.extend([
-                float(np.mean(mfcc_flat)),
-                float(np.std(mfcc_flat)),
-                float(np.min(mfcc_flat)),
-                float(np.max(mfcc_flat))
-            ])
-        else:
-            feature_vector.extend([0.0, 0.0, 0.0, 0.0])
         
-        # Spectral features
-        spectral_centroids = features.get('spectral_centroids', np.array([0]))
-        spectral_rolloff = features.get('spectral_rolloff', np.array([0]))
-        spectral_bandwidth = features.get('spectral_bandwidth', np.array([0]))
-        
-        feature_vector.extend([
-            float(np.mean(spectral_centroids)),
-            float(np.std(spectral_centroids)),
-            float(np.mean(spectral_rolloff)),
-            float(np.std(spectral_rolloff)),
-            float(np.mean(spectral_bandwidth)),
-            float(np.std(spectral_bandwidth))
-        ])
-        
-        # ZCR features
-        zcr_seq = features.get('zcr_sequence', np.array([0]))
-        if len(zcr_seq) > 0:
-            feature_vector.extend([
-                float(np.mean(zcr_seq)),
-                float(np.std(zcr_seq))
-            ])
-        else:
-            feature_vector.extend([0.0, 0.0])
-        
-        # Duration
-        feature_vector.append(float(features.get('duration', 0)))
-        
-        # Convert to tensor
-        feature_tensor = torch.FloatTensor(feature_vector).unsqueeze(0)  # Add batch dimension
+        # If it's empty or invalid shape, create a dummy
+        if mfcc.size == 0 or len(mfcc.shape) < 2 or mfcc.shape[0] != 13:
+            mfcc = np.zeros((13, 100))
+            
+        # Convert to tensor and add batch and channel dims: [B, C, H, W] -> [1, 1, 13, T]
+        feature_tensor = torch.FloatTensor(mfcc).unsqueeze(0).unsqueeze(0)
         return feature_tensor
     
     def _predict_with_custom_model(self, features: Dict[str, Any]) -> Optional[float]:

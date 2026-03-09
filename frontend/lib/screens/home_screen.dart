@@ -157,16 +157,20 @@ class _HomeScreenState extends State<HomeScreen> {
           // Header with greeting and language selector
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Greeting Section
-          Text(
-            '${lp.translate('hi')} $firstName!',
-            style: const TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
+          Expanded(
+            child: Text(
+              '${lp.translate('hi')} $firstName!',
+              style: const TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
               ),
+            ),
+          ),
+          const SizedBox(width: 8),
               // Language selector
               PopupMenuButton<String>(
                 icon: Container(
@@ -458,9 +462,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      CustomPaint(
-                        size: const Size(50, 50),
-                        painter: LogoPainter(),
+                      Image.asset(
+                        'assets/images/logo.png',
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.contain,
                       ),
                     ],
                   ),
@@ -511,12 +517,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     const Icon(Icons.bolt, color: AppColors.darkGreen, size: 28),
                     const SizedBox(width: 12),
-                    Text(
-                      lp.translate('bio_feedback_test'),
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
+                    Expanded(
+                      child: Text(
+                        lp.translate('bio_feedback_test'),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
                       ),
                     ),
                   ],
@@ -576,12 +584,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     const Icon(Icons.psychology, color: AppColors.darkGreen, size: 28),
                     const SizedBox(width: 12),
-                    Text(
-                      lp.translate('mental_health_assessment'),
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
+                    Expanded(
+                      child: Text(
+                        lp.translate('mental_health_assessment'),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
                       ),
                     ),
                   ],
@@ -633,12 +643,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     const Icon(Icons.keyboard, color: AppColors.darkGreen, size: 28),
                     const SizedBox(width: 12),
-                    Text(
-                      lp.translate('typing_rhythm_test'),
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
+                    Expanded(
+                      child: Text(
+                        lp.translate('typing_rhythm_test'),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
                       ),
                     ),
                   ],
@@ -681,13 +693,16 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    lp.translate('energy_trend'),
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[700],
+                  Expanded(
+                    child: Text(
+                      lp.translate('energy_trend'),
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[700],
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Container(
                     width: 40,
                     height: 40,
@@ -859,9 +874,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         child: Center(
-          child: CustomPaint(
-            size: const Size(30, 30),
-            painter: LogoPainter(),
+          child: Image.asset(
+            'assets/images/logo.png',
+            width: 30,
+            height: 30,
+            fit: BoxFit.contain,
           ),
         ),
       ),
@@ -909,77 +926,3 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// Logo painter (reused from login screen)
-class LogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final width = size.width;
-    final height = size.height;
-    final centerX = width / 2;
-    final centerY = height / 2;
-
-    // Draw heart shape (pink/purple)
-    final heartPaint = Paint()
-      ..color = const Color(0xFFE91E63)
-      ..style = PaintingStyle.fill;
-
-    final heartPath = Path();
-    heartPath.moveTo(centerX, centerY + height * 0.15);
-    heartPath.cubicTo(
-      centerX, centerY,
-      centerX - width * 0.15, centerY - height * 0.1,
-      centerX - width * 0.15, centerY + height * 0.05,
-    );
-    heartPath.cubicTo(
-      centerX - width * 0.15, centerY + height * 0.15,
-      centerX - width * 0.05, centerY + height * 0.2,
-      centerX, centerY + height * 0.25,
-    );
-    heartPath.cubicTo(
-      centerX + width * 0.05, centerY + height * 0.2,
-      centerX + width * 0.15, centerY + height * 0.15,
-      centerX + width * 0.15, centerY + height * 0.05,
-    );
-    heartPath.cubicTo(
-      centerX + width * 0.15, centerY - height * 0.1,
-      centerX, centerY,
-      centerX, centerY + height * 0.15,
-    );
-    canvas.drawPath(heartPath, heartPaint);
-
-    // Draw medical cross (green)
-    final crossPaint = Paint()
-      ..color = AppColors.darkGreen
-      ..style = PaintingStyle.fill;
-
-    final crossSize = width * 0.25;
-    final crossThickness = width * 0.08;
-    
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(centerX, centerY),
-          width: crossThickness,
-          height: crossSize,
-        ),
-        const Radius.circular(2),
-      ),
-      crossPaint,
-    );
-    
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(centerX, centerY),
-          width: crossSize,
-          height: crossThickness,
-        ),
-        const Radius.circular(2),
-      ),
-      crossPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
