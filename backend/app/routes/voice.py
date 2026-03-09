@@ -89,7 +89,7 @@ async def analyze_voice(
     depression_score = analysis_result.get("depression_score", None)
     
     # Get repeat call count from last hour
-    from datetime import datetime, timedelta
+    from datetime import timedelta
     one_hour_ago = datetime.utcnow() - timedelta(hours=1)
     user_sessions = firestore_service.get_user_sessions(user_id)
     repeat_call_count = 0
@@ -181,6 +181,15 @@ async def analyze_voice(
             'alert_type': 'fake_detected',
             'severity': severity,
             'message': f"Potential fake call detected. Risk: {risk_label}, Confidence: {fake_confidence:.2f}. Suspicious words: {words_str}. Language: {language}."
+        })
+    
+    # Update user profile with real-time fake status for dashboard
+    current_fake_status = current_user.get('fake_status', {})
+    if fake_confidence > current_fake_status.get('fake_score', 0):
+        firestore_service.update_user_fake_status(user_id, {
+            "is_fake": is_fake,
+            "fake_score": fake_confidence,
+            "batch_type": "voice_realtime"
         })
     
     # Check if we should analyze a voice batch (1-5, 15-20, 30-35)

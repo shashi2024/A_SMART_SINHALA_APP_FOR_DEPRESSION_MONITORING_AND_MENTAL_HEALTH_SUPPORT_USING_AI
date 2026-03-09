@@ -114,8 +114,8 @@ class _BioFeedbackScreenState extends State<BioFeedbackScreen> {
 
       // 2. Start Voice Recording
       final dir = await getTemporaryDirectory();
-      _audioPath = '${dir.path}/bio_voice.m4a';
-      await _audioRecorder.start(const RecordConfig(), path: _audioPath!);
+      _audioPath = '${dir.path}/bio_voice.wav';
+      await _audioRecorder.start(const RecordConfig(encoder: AudioEncoder.wav), path: _audioPath!);
 
       // 3. Simulate duration (Wait 10 seconds)
       for (int i = 0; i < 10; i++) {

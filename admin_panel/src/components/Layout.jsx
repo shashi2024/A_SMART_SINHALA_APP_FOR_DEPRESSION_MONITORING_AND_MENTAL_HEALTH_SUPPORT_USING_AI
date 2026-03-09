@@ -149,33 +149,10 @@ function Layout() {
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative',
+              overflow: 'hidden',
             }}
           >
-            {/* Logo icon - simplified brain/heart design */}
-            <Box
-              sx={{
-                width: 30,
-                height: 30,
-                borderRadius: '50%',
-                bgcolor: '#9C27B0', // Purple
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-              }}
-            >
-              <Box
-                sx={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: '50%',
-                  bgcolor: colors.darkGreen,
-                  position: 'absolute',
-                  top: -2,
-                  right: -2,
-                }}
-              />
-            </Box>
+            <img src="/logo.png" alt="Sahana Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </Box>
           <Typography
             variant="h6"

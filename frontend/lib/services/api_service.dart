@@ -481,7 +481,7 @@ class ApiService {
 
   Future<Map<String, dynamic>> getLatestBiofeedback(String userId) async {
     final response = await http.get(
-      Uri.parse('$baseUrl/data/analyze/biofeedback/latest?user_id=$userId'),
+      Uri.parse('$baseUrl/analyze/biofeedback/latest?user_id=$userId'),
       headers: _headers,
     );
 
