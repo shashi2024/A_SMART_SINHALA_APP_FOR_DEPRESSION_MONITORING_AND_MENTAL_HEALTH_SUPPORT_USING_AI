@@ -1,0 +1,33 @@
+Project Technology Stack
+========================
+
+1. Mobile Application (Frontend)
+--------------------------------
+- Core Framework & Language: Flutter, Dart
+- State Management: Provider
+- Backend Integration: Firebase (Authentication, Cloud Firestore, Cloud Storage, Cloud Messaging)
+- Device Hardware & Sensors: sensors_plus, geolocator, camera, image_picker
+- Voice & Audio: record, speech_to_text, flutter_tts
+- Networking: HTTP Client, web_socket_channel
+- Local Storage: Shared Preferences
+
+2. API & AI Server (Backend)
+----------------------------
+- Core Framework & Language: Python, FastAPI (on Uvicorn)
+- Security: JWT (python-jose), bcrypt (passlib)
+- Database: Firebase Admin SDK
+- ML & Data Science: TensorFlow, Keras, PyTorch, Scikit-learn, Pandas, NumPy, SciPy
+- Audio & Signal: Librosa, Soundfile
+- Computer Vision: OpenCV, Pillow
+- Advanced AI/NLP: Hugging Face transformers, OpenAI, Google GenAI
+- Cloud AI: Google Cloud Speech-to-Text, Google Cloud Text-to-Speech, gtts
+- Configs: Hydra, OmegaConf, dotenv, Pydantic
+
+3. Web Dashboard (Admin Panel)
+------------------------------
+- Core Framework: React 18, Vite
+- Routing: React Router DOM
+- UI Library: Material UI (MUI v5)
+- Data Visualization: Recharts
+- Maps: React Google Maps API
+- Networking: Axios

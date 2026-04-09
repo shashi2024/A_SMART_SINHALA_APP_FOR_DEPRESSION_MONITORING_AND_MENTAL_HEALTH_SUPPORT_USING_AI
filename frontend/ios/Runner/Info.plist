@@ -45,5 +45,17 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to let you capture images for your profile or mood tracking.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs microphone access for voice input to interact with the Sahana AI assistant.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs photo library access to let you select images for your profile or mood tracking.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>This app needs speech recognition access to understand your voice commands and interactions.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs location access when in use to provide relevant local mental health resources.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>This app needs location access to provide localized mental health alerts and services.</string>
 </dict>
 </plist>
