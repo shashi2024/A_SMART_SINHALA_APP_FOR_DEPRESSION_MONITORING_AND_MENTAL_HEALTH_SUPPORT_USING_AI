@@ -115,6 +115,17 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
     }
   }
 
+  Future<void> _handleSignUp() async {
+    // Mark that user has seen the welcome screen
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('has_seen_welcome', true);
+    
+    // Navigate to signup
+    if (mounted) {
+      Navigator.of(context).pushReplacementNamed('/signup');
+    }
+  }
+
   Future<void> _showCameraPrompt() async {
     if (!mounted) return;
     await showDialog(
@@ -191,16 +202,16 @@ class _WelcomeChatScreenState extends State<WelcomeChatScreen> {
         actions: [
           if (isNarrow)
             IconButton(
-              tooltip: lp.translate('login'),
-              onPressed: _handleLogin,
-              icon: const Icon(Icons.login, color: AppColors.darkGreen, size: 22),
+              tooltip: lp.translate('signup'),
+              onPressed: _handleSignUp,
+              icon: const Icon(Icons.person_add, color: AppColors.darkGreen, size: 22),
             )
           else
             TextButton.icon(
-              onPressed: _handleLogin,
-              icon: const Icon(Icons.login, color: AppColors.darkGreen, size: 20),
+              onPressed: _handleSignUp,
+              icon: const Icon(Icons.person_add, color: AppColors.darkGreen, size: 20),
               label: Text(
-                lp.translate('login'),
+                lp.translate('signup'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
