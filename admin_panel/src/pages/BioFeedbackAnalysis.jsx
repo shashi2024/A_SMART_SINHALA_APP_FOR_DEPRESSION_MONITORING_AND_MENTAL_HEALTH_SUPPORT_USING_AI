@@ -144,7 +144,12 @@ function BioFeedbackRow({ user }) {
                     last_activity: bioFeedback?.timestamp || profile.statistics?.last_activity || null,
                     summary: bioFeedback?.final_assessment?.summary,
                     confidence: bioFeedback?.final_assessment?.diagnostic_confidence || 88
+<<<<<<< HEAD
                 }
+=======
+                },
+                history: profile.biofeedback || []
+>>>>>>> 8f647e9cb4f46240746d735c7aaaaff828818b21
             };
 
             setData(bioData);
@@ -247,7 +252,11 @@ function BioFeedbackRow({ user }) {
                     ) : data ? (
                         <Grid container spacing={3}>
                             {/* Facial Camera */}
+<<<<<<< HEAD
                             <Grid item xs={12} sm={6}>
+=======
+                            <Grid item xs={12} sm={4}>
+>>>>>>> 8f647e9cb4f46240746d735c7aaaaff828818b21
                                 <SensorCard
                                     icon={<Videocam />}
                                     title="Facial Analysis"
@@ -259,6 +268,7 @@ function BioFeedbackRow({ user }) {
                                 />
                             </Grid>
 
+<<<<<<< HEAD
                             {/* Accelerometer */}
                             <Grid item xs={12} sm={6}>
                                 <SensorCard
@@ -274,6 +284,10 @@ function BioFeedbackRow({ user }) {
 
                             {/* Heart Rate */}
                             <Grid item xs={12} sm={6}>
+=======
+                            {/* Heart Rate */}
+                            <Grid item xs={12} sm={4}>
+>>>>>>> 8f647e9cb4f46240746d735c7aaaaff828818b21
                                 <SensorCard
                                     icon={<Favorite />}
                                     title="Heart Rate (BPM)"
@@ -286,7 +300,11 @@ function BioFeedbackRow({ user }) {
                             </Grid>
 
                             {/* Microphone */}
+<<<<<<< HEAD
                             <Grid item xs={12} sm={6}>
+=======
+                            <Grid item xs={12} sm={4}>
+>>>>>>> 8f647e9cb4f46240746d735c7aaaaff828818b21
                                 <SensorCard
                                     icon={<Mic />}
                                     title="Voice Analysis"
@@ -345,6 +363,68 @@ function BioFeedbackRow({ user }) {
                                     </CardContent>
                                 </Card>
                             </Grid>
+<<<<<<< HEAD
+=======
+
+                            {/* History Table */}
+                            {data.history && data.history.length > 0 && (
+                                <Grid item xs={12}>
+                                    <Card sx={{ borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                                        <CardContent sx={{ p: 3 }}>
+                                            <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: colors.darkGreen }}>
+                                                Biofeedback History
+                                            </Typography>
+                                            <TableContainer sx={{ maxHeight: 300 }}>
+                                                <Table stickyHeader size="small">
+                                                    <TableHead>
+                                                        <TableRow>
+                                                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#F5F5F5' }}>Date</TableCell>
+                                                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#F5F5F5' }}>Facial Stress</TableCell>
+                                                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#F5F5F5' }}>Heart Rate</TableCell>
+                                                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#F5F5F5' }}>Voice Stress</TableCell>
+                                                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#F5F5F5' }}>Overall Risk</TableCell>
+                                                        </TableRow>
+                                                    </TableHead>
+                                                    <TableBody>
+                                                        {data.history.map((record, index) => (
+                                                            <TableRow key={index} hover>
+                                                                <TableCell>
+                                                                    {record.timestamp ? new Date(record.timestamp).toLocaleString() : 'N/A'}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {record.sensors?.face?.stress_level || 'N/A'}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {record.sensors?.heart_rate?.metrics?.mean_hr_bpm ? `${Math.round(record.sensors.heart_rate.metrics.mean_hr_bpm)} BPM` : 'N/A'}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {record.sensors?.voice?.level || 'N/A'}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {record.final_assessment?.risk_level ? (
+                                                                        <Chip
+                                                                            label={record.final_assessment.risk_level.toUpperCase()}
+                                                                            size="small"
+                                                                            sx={{
+                                                                                bgcolor: getRiskColor(record.final_assessment.risk_level),
+                                                                                color: 'white',
+                                                                                fontWeight: 'bold',
+                                                                                fontSize: '0.7rem',
+                                                                                height: 20
+                                                                            }}
+                                                                        />
+                                                                    ) : 'N/A'}
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </TableContainer>
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+                            )}
+>>>>>>> 8f647e9cb4f46240746d735c7aaaaff828818b21
                         </Grid>
                     ) : (
                         <Typography align="center" py={4}>No data available for this user.</Typography>
