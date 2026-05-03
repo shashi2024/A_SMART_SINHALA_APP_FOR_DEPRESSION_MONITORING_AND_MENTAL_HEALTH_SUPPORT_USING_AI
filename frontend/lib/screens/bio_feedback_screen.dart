@@ -925,6 +925,8 @@ class _BioFeedbackScreenState extends State<BioFeedbackScreen> {
     );
   }
 
+  // Helper methods for stress calculation
+  
   String? _computeAggregatedStressLevel() {
     final scores = <int>[];
 
