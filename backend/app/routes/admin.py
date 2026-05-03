@@ -448,7 +448,7 @@ async def get_user_profile(
         },
         "digital_twin": digital_twin_data,
         "sessions": sessions_with_mood,
-        "biofeedback": firestore_service.get_user_biofeedback_analyses(user_id, limit=1),
+        "biofeedback": firestore_service.get_user_biofeedback_analyses(user_id, limit=20),
         "mood_checkins": [
             {
                 "id": m.get('id'),
