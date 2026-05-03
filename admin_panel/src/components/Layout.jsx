@@ -122,18 +122,10 @@ function Layout() {
           width: drawerWidth,
           flexShrink: 0,
           '& .MuiDrawer-paper': {
-            width: drawerWidth - 32,
+            width: drawerWidth,
             boxSizing: 'border-box',
-            bgcolor: 'rgba(15, 23, 42, 0.85)',
-            backdropFilter: 'blur(16px)',
+            bgcolor: '#F5F5F5',
             borderRight: 'none',
-            borderRadius: '24px',
-            left: '16px',
-            top: '16px',
-            height: 'calc(100vh - 32px)',
-            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            overflowX: 'hidden',
           },
         }}
       >
@@ -144,7 +136,7 @@ function Layout() {
             display: 'flex',
             alignItems: 'center',
             gap: 1,
-            bgcolor: 'transparent',
+            bgcolor: colors.lightPink,
           }}
         >
           <Box
@@ -152,7 +144,7 @@ function Layout() {
               width: 40,
               height: 40,
               borderRadius: '50%',
-              bgcolor: 'white',
+              bgcolor: colors.lightPink,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -166,7 +158,7 @@ function Layout() {
             variant="h6"
             sx={{
               fontWeight: 'bold',
-              color: 'white',
+              color: colors.darkGreen,
               fontSize: '18px',
             }}
           >
@@ -182,24 +174,24 @@ function Layout() {
                 selected={isActive(item.path)}
                 onClick={() => navigate(item.path)}
                 sx={{
-                  borderRadius: '12px',
-                  bgcolor: isActive(item.path) ? 'white' : 'transparent',
-                  color: isActive(item.path) ? '#0F172A' : 'rgba(255,255,255,0.7)',
+                  borderRadius: 2,
+                  bgcolor: isActive(item.path) ? colors.darkGreen : 'transparent',
+                  color: isActive(item.path) ? 'white' : '#666',
                   '&:hover': {
-                    bgcolor: isActive(item.path) ? 'white' : 'rgba(255,255,255,0.1)',
+                    bgcolor: isActive(item.path) ? colors.darkGreen : 'rgba(0,0,0,0.04)',
                   },
                   '&.Mui-selected': {
-                    bgcolor: 'white',
-                    color: '#0F172A',
+                    bgcolor: colors.darkGreen,
+                    color: 'white',
                     '&:hover': {
-                      bgcolor: 'white',
+                      bgcolor: colors.darkGreen,
                     },
                   },
                 }}
               >
                 <ListItemIcon
                   sx={{
-                    color: isActive(item.path) ? '#0F172A' : 'rgba(255,255,255,0.7)',
+                    color: isActive(item.path) ? 'white' : '#666',
                     minWidth: 40,
                   }}
                 >
@@ -223,14 +215,14 @@ function Layout() {
             <ListItemButton
               onClick={handleLogout}
               sx={{
-                borderRadius: '12px',
-                color: 'rgba(255,255,255,0.7)',
+                borderRadius: 2,
+                color: '#666',
                 '&:hover': {
-                  bgcolor: 'rgba(255,255,255,0.1)',
+                  bgcolor: 'rgba(0,0,0,0.04)',
                 },
               }}
             >
-              <ListItemIcon sx={{ color: 'rgba(255,255,255,0.7)', minWidth: 40 }}>
+              <ListItemIcon sx={{ color: '#666', minWidth: 40 }}>
                 <ExitToAppIcon />
               </ListItemIcon>
               <ListItemText
