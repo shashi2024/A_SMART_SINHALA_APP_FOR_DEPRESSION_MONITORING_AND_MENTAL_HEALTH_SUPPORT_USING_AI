@@ -176,13 +176,14 @@ async def predict_stress(audio: UploadFile = File(...)):
 
     except Exception as e:
         raise HTTPException(500, f"Error processing audio: {str(e)}")
-<<<<<<< HEAD
-# Audio backend endpoint
-=======
 
->>>>>>> 8f647e9cb4f46240746d735c7aaaaff828818b21
+# Audio backend endpoint
+
 @router.post("/predict-voice-stress-ai")
-async def predict_stress(audio: UploadFile = File(...)):
+async def predict_stress_ai(
+    audio: UploadFile = File(...),
+    user_id: Optional[str] = None
+):
     if audio.content_type not in [
         "audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp3"
     ]:
@@ -194,6 +195,22 @@ async def predict_stress(audio: UploadFile = File(...)):
         
         if not result["status"]:
             raise HTTPException(500, f"Stress analysis failed: {result['error']}")
+        
+        if user_id:
+            from datetime import datetime, timezone
+            stress_map = {"low": 1.0, "medium": 2.0, "high": 3.0}
+            stress_score = stress_map.get(result.get("level", "low").lower(), 1.0)
+            
+            firestore_service.create_biofeedback_analysis({
+                "user_id": user_id,
+                "voice": result,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "final_assessment": {
+                    "risk_level": result.get("level", "low"),
+                    "avg_stress_score": stress_score,
+                    "summary": f"Individual voice analysis: {result.get('level')}"
+                }
+            })
         
         return {
             "status": "success",

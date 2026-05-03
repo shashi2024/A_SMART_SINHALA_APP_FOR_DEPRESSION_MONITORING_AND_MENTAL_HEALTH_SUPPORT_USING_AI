@@ -144,12 +144,8 @@ function BioFeedbackRow({ user }) {
                     last_activity: bioFeedback?.timestamp || profile.statistics?.last_activity || null,
                     summary: bioFeedback?.final_assessment?.summary,
                     confidence: bioFeedback?.final_assessment?.diagnostic_confidence || 88
-<<<<<<< HEAD
-                }
-=======
                 },
                 history: profile.biofeedback || []
->>>>>>> 8f647e9cb4f46240746d735c7aaaaff828818b21
             };
 
             setData(bioData);
@@ -252,11 +248,7 @@ function BioFeedbackRow({ user }) {
                     ) : data ? (
                         <Grid container spacing={3}>
                             {/* Facial Camera */}
-<<<<<<< HEAD
-                            <Grid item xs={12} sm={6}>
-=======
                             <Grid item xs={12} sm={4}>
->>>>>>> 8f647e9cb4f46240746d735c7aaaaff828818b21
                                 <SensorCard
                                     icon={<Videocam />}
                                     title="Facial Analysis"
@@ -268,26 +260,8 @@ function BioFeedbackRow({ user }) {
                                 />
                             </Grid>
 
-<<<<<<< HEAD
-                            {/* Accelerometer */}
-                            <Grid item xs={12} sm={6}>
-                                <SensorCard
-                                    icon={<DirectionsRun />}
-                                    title="Movement / Activity"
-                                    value={data.accelerometer?.activity}
-                                    label={`Energy: ${data.accelerometer?.energy}`}
-                                    color={colors.blue}
-                                    metrics={data.accelerometer?.metrics}
-                                    isEmpty={!data.accelerometer}
-                                />
-                            </Grid>
-
-                            {/* Heart Rate */}
-                            <Grid item xs={12} sm={6}>
-=======
                             {/* Heart Rate */}
                             <Grid item xs={12} sm={4}>
->>>>>>> 8f647e9cb4f46240746d735c7aaaaff828818b21
                                 <SensorCard
                                     icon={<Favorite />}
                                     title="Heart Rate (BPM)"
@@ -300,11 +274,7 @@ function BioFeedbackRow({ user }) {
                             </Grid>
 
                             {/* Microphone */}
-<<<<<<< HEAD
-                            <Grid item xs={12} sm={6}>
-=======
                             <Grid item xs={12} sm={4}>
->>>>>>> 8f647e9cb4f46240746d735c7aaaaff828818b21
                                 <SensorCard
                                     icon={<Mic />}
                                     title="Voice Analysis"
@@ -363,8 +333,6 @@ function BioFeedbackRow({ user }) {
                                     </CardContent>
                                 </Card>
                             </Grid>
-<<<<<<< HEAD
-=======
 
                             {/* History Table */}
                             {data.history && data.history.length > 0 && (
@@ -424,7 +392,6 @@ function BioFeedbackRow({ user }) {
                                     </Card>
                                 </Grid>
                             )}
->>>>>>> 8f647e9cb4f46240746d735c7aaaaff828818b21
                         </Grid>
                     ) : (
                         <Typography align="center" py={4}>No data available for this user.</Typography>
