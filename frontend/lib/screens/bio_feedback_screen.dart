@@ -367,6 +367,9 @@ class _BioFeedbackScreenState extends State<BioFeedbackScreen> {
       // Upload to accelerometer endpoint
       await _uploadAccelerometerData();
 
+      // NEW: Save all combined results together
+      await _saveCombinedResults();
+
       // Assessment complete
       if (mounted) {
         setState(() {
@@ -650,6 +653,33 @@ class _BioFeedbackScreenState extends State<BioFeedbackScreen> {
       }
     } catch (e) {
       debugPrint('Accelerometer upload error: $e');
+    }
+  }
+
+  Future<void> _saveCombinedResults() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final userId = auth.user?.id;
+    if (userId == null) return;
+    
+    try {
+      final apiService = context.read<ApiService>();
+      final payload = {
+        'user_id': userId,
+        'face': _faceResults ?? {'error': 'No data'},
+        'voice': _voiceResults ?? {'error': 'No data'},
+        'heart_rate': _hrResults ?? {'error': 'No data'},
+        'movement': _accelResults ?? {'error': 'No data'},
+      };
+      
+      final response = await apiService.post('/analyze/biofeedback/save', payload);
+      if (response['status'] == 'success') {
+        if (!mounted) return;
+        setState(() {
+          _finalResults = response['results'];
+        });
+      }
+    } catch (e) {
+      debugPrint("Save combined results error: $e");
     }
   }
 

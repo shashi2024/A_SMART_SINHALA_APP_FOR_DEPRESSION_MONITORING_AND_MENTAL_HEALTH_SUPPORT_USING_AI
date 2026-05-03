@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Form
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import json
 
 import cv2
@@ -206,22 +206,9 @@ async def predict_stress(audio: UploadFile = File(...)):
 @router.post("/analyze/activity")
 def analyze_activity_endpoint(
     payload: ActivityPayload,
-    user_id: Optional[str] = None  # Make it optional for backward compatibility
+    user_id: Optional[str] = None
 ):
     result = analyze_activity([s.dict() for s in payload.accelerometer_data])
-    
-    if user_id:
-        # Save to Firestore as a partial biofeedback analysis
-        firestore_service.create_biofeedback_analysis({
-            "user_id": user_id,
-            "movement": result,
-            "created_at": datetime.utcnow().isoformat(),
-            "final_assessment": {
-                "risk_level": "low" if result.get("activity") in ["Sitting", "Standing"] else "moderate",
-                "avg_stress_score": 1.0 if result.get("activity") in ["Sitting", "Standing"] else 2.0,
-                "summary": f"Individual movement analysis: {result.get('activity')}"
-            }
-        })
     return result
 
 @router.post("/analyze/heart-rate")
@@ -230,24 +217,98 @@ def analyze_stress_endpoint(
     user_id: Optional[str] = None
 ):
     result = analyze_stress(payload.rr_intervals)
-    
-    if user_id:
-        # Map stress level to numeric for averaging
-        stress_map = {"Relaxed": 1.0, "Normal": 2.0, "Elevated Stress": 3.0, "High Stress": 4.0}
-        stress_score = stress_map.get(result.get("stress_level"), 2.0)
-        
-        # Save to Firestore
-        firestore_service.create_biofeedback_analysis({
-            "user_id": user_id,
-            "heart_rate": result,
-            "created_at": datetime.utcnow().isoformat(),
-            "final_assessment": {
-                "risk_level": result.get("stress_level", "low"),
-                "avg_stress_score": stress_score,
-                "summary": f"Individual heart rate analysis: {result.get('stress_level')}"
-            }
-        })
     return result
+
+class BioFeedbackSavePayload(BaseModel):
+    user_id: str
+    face: Dict[str, Any]
+    voice: Dict[str, Any]
+    heart_rate: Dict[str, Any]
+    movement: Dict[str, Any]
+
+@router.post("/analyze/biofeedback/save")
+def save_biofeedback(payload: BioFeedbackSavePayload):
+    from datetime import datetime, timezone
+    
+    results = {
+        "user_id": payload.user_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "sensors": {
+            "face": payload.face,
+            "voice": payload.voice,
+            "heart_rate": payload.heart_rate,
+            "movement": payload.movement
+        }
+    }
+    
+    # Calculate final assessment
+    base_weights = {
+        "face": 0.35,
+        "voice": 0.35,
+        "heart_rate": 0.20,
+        "movement": 0.10
+    }
+    
+    sensor_scores = {}
+    confidence_score = 0.50
+    
+    # Face score
+    level = payload.face.get("stress_level")
+    if level == "high": sensor_scores["face"] = 3.0
+    elif level == "medium": sensor_scores["face"] = 2.0
+    else: sensor_scores["face"] = 1.0
+    confidence_score += 0.15
+        
+    # Voice score
+    level = payload.voice.get("level") or payload.voice.get("stress_level")
+    if level == "high": sensor_scores["voice"] = 3.0
+    elif level == "medium": sensor_scores["voice"] = 2.0
+    else: sensor_scores["voice"] = 1.0
+    confidence_score += 0.15
+        
+    # Heart rate score
+    level = payload.heart_rate.get("stress_level")
+    if level == "High Stress": sensor_scores["heart_rate"] = 3.0
+    elif level == "Elevated Stress": sensor_scores["heart_rate"] = 2.0
+    else: sensor_scores["heart_rate"] = 1.0
+    confidence_score += 0.10
+
+    # Movement score
+    activity = payload.movement.get("activity")
+    if activity == "Running": sensor_scores["movement"] = 2.5
+    elif activity == "Walking": sensor_scores["movement"] = 1.5
+    else: sensor_scores["movement"] = 1.0
+    confidence_score += 0.05
+
+    total_available_weight = sum(base_weights[s] for s in sensor_scores)
+    if total_available_weight > 0:
+        avg_weighted_score = sum(sensor_scores[s] * (base_weights[s] / total_available_weight) for s in sensor_scores)
+    else:
+        avg_weighted_score = 0.0
+        
+    if avg_weighted_score > 2.6: final_risk = "severe"
+    elif avg_weighted_score > 2.1: final_risk = "high"
+    elif avg_weighted_score > 1.4: final_risk = "moderate"
+    else: final_risk = "low"
+
+    results["final_assessment"] = {
+        "risk_level": final_risk,
+        "avg_stress_score": round(avg_weighted_score, 2),
+        "confidence": round(confidence_score, 2),
+        "summary": f"Calculated based on {len(sensor_scores)} contributing sensor factors."
+    }
+
+    # Save to Firestore
+    firestore_service.create_biofeedback_analysis(results.copy())
+    
+    # Update user's global risk
+    user_ref = firestore_service.db.collection('users').document(payload.user_id)
+    user_ref.update({
+        'risk_level': final_risk,
+        'last_activity': datetime.now(timezone.utc).isoformat() + 'Z'
+    })
+
+    return {"status": "success", "results": results}
 
 @router.post("/analyze/biofeedback")
 async def analyze_biofeedback(
