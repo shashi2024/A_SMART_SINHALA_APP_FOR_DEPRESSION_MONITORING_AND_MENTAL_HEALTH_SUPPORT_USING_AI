@@ -13,6 +13,7 @@ twitter_service = TwitterService()
 # Request model for single text analysis
 class TwitterAnalysisRequest(BaseModel):
     text: str
+    
 
 # Request model for batch text analysis
 class TwitterBatchAnalysisRequest(BaseModel):

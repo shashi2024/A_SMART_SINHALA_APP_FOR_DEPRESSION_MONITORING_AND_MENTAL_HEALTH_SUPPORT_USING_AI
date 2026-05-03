@@ -1,48 +1,16 @@
-// React core hooks
 import React, { useState, useEffect } from 'react';
-
-// API service (backend calls)
 import api from '../services/api';
-
-// Material UI components
 import {
-    Box,
-    Typography,
-    Card,
-    CardContent,
-    Grid,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Paper,
-    Chip,
-    CircularProgress,
-    Collapse,
-    IconButton,
-    List,
-    ListItem,
-    ListItemIcon,
-    ListItemText,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    LinearProgress,
-    Alert
-} from '@mui/material';
-
-// Material UI icons
+    Box, Typography, Card, CardContent, Grid, Table, TableBody, TableCell,
+    TableContainer, TableHead, TableRow, Paper, Chip, CircularProgress,
+    Collapse, IconButton, List, ListItem, ListItemIcon, ListItemText,
+    Dialog, DialogTitle, DialogContent, LinearProgress, Alert
+} 
+from '@mui/material';
 import {
-    CalendarToday,
-    People,
-    Description,
-    Videocam,
-    KeyboardArrowDown,
-    KeyboardArrowUp,
-} from '@mui/icons-material';
-
+    CalendarToday, People, Description, Videocam, KeyboardArrowDown, KeyboardArrowUp,
+}
+ from '@mui/icons-material';
 import CloseIcon from '@mui/icons-material/Close';
 import TwitterIcon from '@mui/icons-material/Twitter';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
@@ -50,7 +18,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WarningIcon from '@mui/icons-material/Warning';
 
 /**
- * Color theme for dashboard UI
+ * Color palette matching the overall design system of the dashboard
  */
 const colors = {
     darkGreen: '#185846',
@@ -65,198 +33,247 @@ const colors = {
 };
 
 /**
- * Each row = one user Twitter analysis
+ * Component representing a single row in the Twitter analysis table.
+ * It handles the individual analysis for each patient.
  */
 function TwitterAnalysisRow({ user, onRiskCalculated }) {
+    const [open, setOpen] = useState(false); // Controls the analysis popup modal
+    const [loading, setLoading] = useState(true); // Loading state for the specific user's analysis
+    const [result, setResult] = useState(null); // Stores the prediction results from backend
+    const [error, setError] = useState(''); // Stores any error messages during analysis
 
-    // row expand/collapse state (popup)
-    const [open, setOpen] = useState(false);
-
-    // loading state for API call
-    const [loading, setLoading] = useState(true);
-
-    // analysis result from backend
-    const [result, setResult] = useState(null);
-
-    // error handling state
-    const [error, setError] = useState('');
-
+    // Determine which username to use for Twitter analysis
     const displayUsername = user.twitter_username || user.username;
-
-    /**
-     * Fetch Twitter depression analysis when component loads
-     */
+    
     useEffect(() => {
+        /**
+         * Fetches Twitter analysis prediction from the backend FastAPI server
+         */
         const fetchAnalysis = async () => {
             try {
-                const cleanUsername = displayUsername
-                    ? displayUsername.replace('@', '')
-                    : '';
-
-                // If no username available
-                if (!cleanUsername) {
+                // Clean the username by removing '@' if present
+                const cleanUsername = displayUsername ? displayUsername.replace('@', '') : '';
+             if (!cleanUsername) {
                     setError("No Twitter username registered");
                     setLoading(false);
-                    if (onRiskCalculated) onRiskCalculated(false);
+                    if (onRiskCalculated) onRiskCalculated(false); // Default to low risk if no username
                     return;
                 }
 
-                // API call to backend prediction endpoint
-                const response = await api.post('/twitter/predict', {
-                    username: cleanUsername
-                });
+                // Send request to ML backend for prediction
+                const response = await api.post('/twitter/predict', { username: cleanUsername });
 
-                // If backend returns error
                 if (response.data.error) {
                     setError(response.data.error);
                     if (onRiskCalculated) onRiskCalculated(false);
                 } else {
                     setResult(response.data);
-
-                    // Convert percentage to number and check risk level
+                    // If depression percentage > 50, mark as high risk
                     const isHighRisk = parseFloat(response.data.depressed_percent) > 50;
-
                     if (onRiskCalculated) onRiskCalculated(isHighRisk);
                 }
-
-            } catch (err) {
-                // Handle API failure
-                setError(
-                    err.response?.data?.detail ||
-                    err.response?.data?.error ||
-                    'Failed to analyze Twitter profile.'
-                );
-
+            }
+             catch (err) {
+                setError(err.response?.data?.detail || err.response?.data?.error || 'Failed to analyze Twitter profile.');
                 if (onRiskCalculated) onRiskCalculated(false);
             } finally {
                 setLoading(false);
             }
         };
-
         fetchAnalysis();
     }, [displayUsername, onRiskCalculated]);
 
-    // Convert percentage string to number
     const depressedPercent = result ? parseFloat(result.depressed_percent) : 0;
-
-    // High risk condition
     const isHighRisk = depressedPercent > 50;
 
     return (
-        <>
-            {/* Table Row UI */}
+        <React.Fragment>
+            {/* Main Table Row displaying summary info */}
             <TableRow
-                sx={{
-                    cursor: 'pointer',
-                    '&:hover': { bgcolor: '#F5F5F5' }
-                }}
+                sx={{ '& > *': { borderBottom: 'unset' }, cursor: 'pointer', '&:hover': { bgcolor: '#F5F5F5' } }}
                 onClick={() => setOpen(true)}
             >
-
                 <TableCell>{user.username || 'N/A'}</TableCell>
                 <TableCell>{user.email || 'N/A'}</TableCell>
                 <TableCell>@{displayUsername?.replace('@', '')}</TableCell>
-
-                {/* Tweet count */}
                 <TableCell>
-                    {loading ? (
-                        <CircularProgress size={20} />
-                    ) : error ? (
-                        '0'
-                    ) : (
-                        `${result.total_tweets}`
-                    )}
+                    {loading ? <CircularProgress size={20} /> : error ? '0' : `${result.total_tweets}`}
                 </TableCell>
-
-                {/* Risk indicator */}
                 <TableCell>
                     {loading ? (
                         <CircularProgress size={20} />
                     ) : error ? (
-                        <Chip label="Error" size="small" />
+                        <Chip label="Error" size="small" sx={{ bgcolor: '#eee', color: '#666', fontWeight: 600, borderRadius: 2 }} />
                     ) : (
                         <Chip
-                            label={
-                                isHighRisk
-                                    ? `High (${result.depressed_percent})`
-                                    : `Low (${result.depressed_percent})`
-                            }
+                            label={isHighRisk ? `High (${result.depressed_percent})` : `Low (${result.depressed_percent})`}
                             size="small"
                             sx={{
                                 bgcolor: isHighRisk ? colors.red : colors.darkGreen,
-                                color: 'white'
+                                color: 'white',
+                                fontWeight: 600,
+                                borderRadius: 2,
                             }}
                         />
                     )}
                 </TableCell>
-
-                {/* expand button */}
                 <TableCell>
-                    <IconButton
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setOpen(true);
-                        }}
-                    >
+                    <IconButton aria-label="expand row" size="small" onClick={(e) => { e.stopPropagation(); setOpen(true); }}>
                         <KeyboardArrowDown />
                     </IconButton>
                 </TableCell>
             </TableRow>
 
-            {/* POPUP DIALOG - detailed analysis view */}
-            <Dialog open={open} onClose={() => setOpen(false)}>
-
-                <DialogTitle>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography>@{displayUsername?.replace('@', '')}</Typography>
-                        <IconButton onClick={() => setOpen(false)}>
-                            <CloseIcon />
-                        </IconButton>
+            {/* POPUP MODAL for detailed risk breakdown */}
+            <Dialog
+                open={open}
+                onClose={() => setOpen(false)}
+                PaperProps={{
+                    sx: {
+                        borderRadius: 4,
+                        bgcolor: 'white',
+                        minWidth: '400px',
+                        maxWidth: '500px',
+                        overflow: 'hidden'
+                    }
+                }}
+            >
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <TwitterIcon sx={{ color: '#1DA1F2' }} />
+                        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>@{displayUsername?.replace('@', '')}</Typography>
+                        {!loading && !error && result && (
+                            <Chip
+                                label={isHighRisk ? 'HIGH' : 'LOW'}
+                                size="small"
+                                sx={{
+                                    bgcolor: isHighRisk ? colors.red : colors.darkGreen,
+                                    color: 'white',
+                                    fontWeight: 'bold',
+                                    fontSize: '0.7rem',
+                                    height: '20px',
+                                    borderRadius: 1
+                                }}
+                            />
+                        )}
                     </Box>
+                    <IconButton onClick={() => setOpen(false)} size="small">
+                        <CloseIcon />
+                    </IconButton>
                 </DialogTitle>
 
-                <DialogContent>
-
-                    {/* Loading state */}
+                <DialogContent sx={{ p: 4, pt: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     {loading ? (
-                        <CircularProgress />
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 5 }}>
+                            <CircularProgress sx={{ mb: 2 }} />
+                            <Typography color="text.secondary">Analyzing X timeline...</Typography>
+                        </Box>
                     ) : error ? (
-                        <Alert severity="error">{error}</Alert>
+                        <Alert severity="error" sx={{ width: '100%' }}>{error}</Alert>
                     ) : result ? (
-                        <>
-                            {/* Risk percentage display */}
-                            <Typography>
-                                Risk: {result.depressed_percent}
+                        <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            {/* Circular Risk Indicator with percentage */}
+                            <Box sx={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', my: 2, width: 120, height: 120 }}>
+                                <CircularProgress
+                                    variant="determinate"
+                                    value={100}
+                                    size={100}
+                                    thickness={6}
+                                    sx={{ color: '#f0f0f0', position: 'absolute' }}
+                                />
+                                <CircularProgress
+                                    variant="determinate"
+                                    value={depressedPercent}
+                                    size={100}
+                                    thickness={6}
+                                    sx={{
+                                        color: isHighRisk ? colors.red : colors.darkGreen,
+                                        strokeLinecap: 'round'
+                                    }}
+                                />
+                                <Box sx={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                    <Typography variant="h5" sx={{ fontWeight: 'bold', color: isHighRisk ? colors.red : colors.darkGreen }}>
+                                        {result.depressed_percent}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold' }}>risk</Typography>
+                                </Box>
+                            </Box>
+
+                            {/* Summary Statistics: Total, Depressed vs Healthy tweets count */}
+                            <Grid container spacing={2} sx={{ mb: 4, width: '100%', mt: 1 }}>
+                                <Grid item xs={4}>
+                                    <Box sx={{ bgcolor: '#e3f2fd', p: 1.5, borderRadius: 3, textAlign: 'center' }}>
+                                        <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2' }}>{result.total_tweets}</Typography>
+                                        <Typography variant="caption" sx={{ color: '#555', fontWeight: 600 }}>Total</Typography>
+                                    </Box>
+                                </Grid>
+                                <Grid item xs={4}>
+                                    <Box sx={{ bgcolor: '#ffebee', p: 1.5, borderRadius: 3, textAlign: 'center' }}>
+                                        <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#d32f2f' }}>{result.depressed_tweets || Math.round((depressedPercent / 100) * result.total_tweets)}</Typography>
+                                        <Typography variant="caption" sx={{ color: '#555', fontWeight: 600 }}>Depressed</Typography>
+                                    </Box>
+                                </Grid>
+                                <Grid item xs={4}>
+                                    <Box sx={{ bgcolor: '#e8f5e9', p: 1.5, borderRadius: 3, textAlign: 'center' }}>
+                                        <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{result.not_depressed_tweets || Math.round(((100 - depressedPercent) / 100) * result.total_tweets)}</Typography>
+                                        <Typography variant="caption" sx={{ color: '#555', fontWeight: 600 }}>Healthy</Typography>
+                                    </Box>
+                                </Grid>
+                            </Grid>
+
+                            {/* Detailed Signal Bars for visual comparison */}
+                            <Box sx={{ width: '100%', mb: 2 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                    <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: colors.red }} />
+                                        Depressed Signals
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ fontWeight: 'bold' }}>{result.depressed_percent}</Typography>
+                                </Box>
+                                <LinearProgress
+                                    variant="determinate"
+                                    value={depressedPercent}
+                                    sx={{ height: 8, borderRadius: 4, bgcolor: '#f5f5f5', '& .MuiLinearProgress-bar': { bgcolor: colors.red, borderRadius: 4 } }}
+                                />
+                            </Box>
+
+                            <Box sx={{ width: '100%', mb: 3 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                    <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: colors.darkGreen }} />
+                                        Healthy Signals
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ fontWeight: 'bold' }}>{result.not_depressed_percent}</Typography>
+                                </Box>
+                                <LinearProgress
+                                    variant="determinate"
+                                    value={parseFloat(result.not_depressed_percent?.replace('%', '') || 0)}
+                                    sx={{ height: 8, borderRadius: 4, bgcolor: '#f5f5f5', '& .MuiLinearProgress-bar': { bgcolor: colors.darkGreen, borderRadius: 4 } }}
+                                />
+                            </Box>
+
+                            <Typography variant="caption" color="text.secondary">
+                                Last Analyzed: {new Date().toLocaleDateString('en-CA')}
                             </Typography>
-
-                            {/* Tweet statistics */}
-                            <Typography>Total Tweets: {result.total_tweets}</Typography>
-                            <Typography>Depressed: {result.depressed_tweets}</Typography>
-                            <Typography>Healthy: {result.not_depressed_tweets}</Typography>
-                        </>
+                        </Box>
                     ) : null}
-
                 </DialogContent>
             </Dialog>
-        </>
+        </React.Fragment>
     );
 }
 
 /**
- * Main dashboard component
- * - Loads all users
- * - Shows Twitter risk analysis table
+ * Main component for the Twitter Analysis page.
+ * It manages the list of users and overall risk statistics.
  */
 function TwitterAnalysis() {
-
-    const [users, setUsers] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    // store risk results per user
-    const [riskResults, setRiskResults] = useState({});
+    const [users, setUsers] = useState([]); // List of patients to analyze
+    const [loading, setLoading] = useState(true); // Page loading state
+    const [riskResults, setRiskResults] = useState({}); // Stores risk mapping {userId: isHighRisk}
 
     /**
-     * Store risk per user (high/low)
+     * Callback called by each row when its individual analysis is complete
      */
     const handleRiskCalculated = React.useCallback((userId, isHighRisk) => {
         setRiskResults(prev => ({
@@ -265,86 +282,128 @@ function TwitterAnalysis() {
         }));
     }, []);
 
-    // Count high risk users
+    // Derived statistics from the risk results
     const highRiskCount = Object.values(riskResults).filter(v => v === true).length;
-
-    // Count low risk users
     const lowRiskCount = Object.values(riskResults).filter(v => v === false).length;
 
-    /**
-     * Load users from backend
-     */
     useEffect(() => {
+        /**
+         * Fetches all registered users from the backend
+         */
         const fetchData = async () => {
             try {
                 const response = await api.get('/admin/users');
-
-                // filter only patients (not doctors/admins)
-                const patients = response.data.users.filter(u =>
-                    !u.is_admin &&
-                    !u.is_sub_admin &&
-                    u.role !== 'doctor' &&
-                    u.role !== 'nurse'
-                );
-
+                // Filter only normal patients (exclude admins, doctors, nurses)
+                const patients = response.data.users.filter(u => !u.is_admin && !u.is_sub_admin && u.role !== 'doctor' && u.role !== 'nurse');
                 setUsers(patients);
-
             } catch (err) {
                 console.error('Failed to fetch data:', err);
             } finally {
                 setLoading(false);
             }
         };
-
         fetchData();
     }, []);
 
+    const totalUsers = users.length;
+
     if (loading) {
-        return <CircularProgress />;
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
+                <CircularProgress />
+            </Box>
+        );
     }
 
     return (
         <Box sx={{ p: 4 }}>
-
-            {/* Header */}
-            <Typography variant="h4">
-                Twitter Analysis Dashboard
+            {/* Header Title */}
+            <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 4, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <TwitterIcon sx={{ color: '#1DA1F2', fontSize: 36 }} />
+                Patient Twitter Analysis
             </Typography>
 
-            {/* Table */}
-            <TableContainer component={Paper}>
-                <Table>
+            {/* Statistics Dashboard Cards */}
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+                <Grid item xs={12} sm={4}>
+                    <Card sx={{ borderRadius: 3, bgcolor: colors.purple, color: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Box>
+                                    <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>{totalUsers.toLocaleString()}</Typography>
+                                    <Typography variant="body2" sx={{ opacity: 0.9 }}>Total Twitter Users</Typography>
+                                </Box>
+                                <CalendarToday sx={{ fontSize: 40, opacity: 0.8 }} />
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
 
+                <Grid item xs={12} sm={4}>
+                    <Card sx={{ borderRadius: 3, bgcolor: colors.red, color: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Box>
+                                    <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>{highRiskCount}</Typography>
+                                    <Typography variant="body2" sx={{ opacity: 0.9 }}>Depression Detected</Typography>
+                                </Box>
+                                <WarningIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                <Grid item xs={12} sm={4}>
+                    <Card sx={{ borderRadius: 3, bgcolor: colors.darkGreen, color: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Box>
+                                    <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>{lowRiskCount}</Typography>
+                                    <Typography variant="body2" sx={{ opacity: 0.9 }}>No Depression Detected</Typography>
+                                </Box>
+                                <CheckCircleIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
+            </Grid>
+
+            {/* Main Patients Table */}
+            <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                <Table>
                     <TableHead>
-                        <TableRow>
-                            <TableCell>Username</TableCell>
-                            <TableCell>Email</TableCell>
-                            <TableCell>Twitter</TableCell>
-                            <TableCell>Tweets</TableCell>
-                            <TableCell>Risk</TableCell>
-                            <TableCell>Action</TableCell>
+                        <TableRow sx={{ bgcolor: '#F5F5F5' }}>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Username</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Email</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Twitter Handle</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Tweets Analyzed</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Twitter Risk</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Actions</TableCell>
                         </TableRow>
                     </TableHead>
-
                     <TableBody>
-                        {users.map((user, index) => {
-                            const id = user.user_id || user.id || index;
-
-                            return (
-                                <TwitterAnalysisRow
-                                    key={id}
-                                    user={user}
-                                    onRiskCalculated={(isHighRisk) =>
-                                        handleRiskCalculated(id, isHighRisk)
-                                    }
-                                />
-                            );
-                        })}
+                        {users.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                                    <Typography variant="body2" sx={{ color: '#666' }}>No users found</Typography>
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            users.map((user, index) => {
+                                // Unique key for each row
+                                const uniqueId = user.user_id || user.id || user.username || `user-${index}`;
+                                return (
+                                    <TwitterAnalysisRow
+                                        key={uniqueId}
+                                        user={user}
+                                        onRiskCalculated={(isHighRisk) => handleRiskCalculated(uniqueId, isHighRisk)}
+                                    />
+                                );
+                            })
+                        )}
                     </TableBody>
-
                 </Table>
             </TableContainer>
-
         </Box>
     );
 }
