@@ -176,7 +176,7 @@ async def predict_stress(audio: UploadFile = File(...)):
 
     except Exception as e:
         raise HTTPException(500, f"Error processing audio: {str(e)}")
-
+# Audio backend endpoint
 @router.post("/predict-voice-stress-ai")
 async def predict_stress(audio: UploadFile = File(...)):
     if audio.content_type not in [

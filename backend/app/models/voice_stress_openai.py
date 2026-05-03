@@ -43,7 +43,7 @@ def human_voice_stress_openai(audio_file: Any) -> dict:
                 temp_audio.write(audio_file.read())
                 audio_file.seek(0)
             temp_path = temp_audio.name
-
+        # change the audio to text using whisper model 
         try:
             with open(temp_path, "rb") as f:
                 transcription = client.audio.transcriptions.create(
